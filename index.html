@@ -416,7 +416,8 @@ body.hasbar .toast{bottom:calc(86px + env(safe-area-inset-bottom,0px))}
 <script>
 /* Google Cloud で作った OAuth クライアントID（ウェブアプリ）。設定欄で入れた値があればそちらが優先 */
 const GOOGLE_CLIENT_ID='';
-const SCOPES='https://www.googleapis.com/auth/calendar.readonly openid email profile';
+const CAL_SCOPE='https://www.googleapis.com/auth/calendar.readonly',DRIVE_SCOPE='https://www.googleapis.com/auth/drive.appdata';
+const SCOPES=`${CAL_SCOPE} ${DRIVE_SCOPE} openid email profile`;
 
 const $=s=>document.querySelector(s);
 const CATS={class:{label:'授業・実習',work:true},study:{label:'勉強',work:true},work:{label:'作業',work:true},hobby:{label:'趣味',work:false},life:{label:'生活',work:false},move:{label:'移動',work:false}};
@@ -446,7 +447,17 @@ let DB=null;
 function normalize(o){
   o=o||{};o.v=2;o.settings={...DEF,...(o.settings||{})};o.days=o.days||{};o.routines=o.routines||[];o.inbox=o.inbox||[];
   o.gcal={clientId:'',calendars:[],selected:{},ignore:{},email:null,name:null,...(o.gcal||{})};
+  o.u=o.u||{};
   return o;
+}
+/* 同期用の変更印。どの日・どの設定が最後にいつ変わったかを持ち、端末間ではより新しい方を採る */
+const jNoU=o=>JSON.stringify(o===undefined?null:o,(k,v)=>k==='u'?undefined:v);
+const PARTS={settings:o=>o.settings,routines:o=>o.routines,inbox:o=>o.inbox,gsel:o=>({selected:o.gcal.selected,ignore:o.gcal.ignore,clientId:o.gcal.clientId})};
+function stamp(before){
+  const now=Date.now();let n=0;
+  for(const[k,v]of Object.entries(DB.days)){if(jNoU(before.days[k])!==jNoU(v)){v.u=now;n++}}
+  for(const[k,f]of Object.entries(PARTS)){if(jNoU(f(before))!==jNoU(f(DB))){DB.u[k]=now;n++}}
+  if(n)markDirty();
 }
 function load(){try{const s=localStorage.getItem(KEY);if(s){const o=JSON.parse(s);if(o&&o.days)return normalize(o)}}catch(e){}return null}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(DB))}catch(e){}}
@@ -458,41 +469,149 @@ const taskOf=(d,id)=>id?d.tasks.find(t=>t.id===id):undefined;
 /* ---------- 元に戻す ---------- */
 const undoStack=[];
 function snap(){undoStack.push(JSON.stringify(DB));if(undoStack.length>40)undoStack.shift();$('#undoBtn').disabled=false}
-function undo(){const s=undoStack.pop();if(!s)return;DB=normalize(JSON.parse(s));save();$('#undoBtn').disabled=!undoStack.length;renderSettings();render();toast('元に戻しました')}
-function mutate(fn,opt={}){snap();fn(day());if(opt.replan!==false&&S().autoReplan)autoPlan(day());save();render();if(opt.msg)toast(opt.msg,true)}
+function undo(){const s=undoStack.pop();if(!s)return;const before=DB;DB=normalize(JSON.parse(s));DB.u={...before.u};stamp(before);save();$('#undoBtn').disabled=!undoStack.length;renderSettings();render();toast('元に戻しました')}
+function mutate(fn,opt={}){
+  snap();const before=JSON.parse(undoStack[undoStack.length-1]);
+  fn(day());if(opt.replan!==false&&S().autoReplan)autoPlan(day());
+  stamp(before);save();render();if(opt.msg)toast(opt.msg,true);
+  if(DB.gcal.email&&!gLive())gQuietReconnect();
+}
+/* mutate を通らない変更（設定欄など）用 */
+function edit(fn){const before=JSON.parse(JSON.stringify(DB));fn();stamp(before);save()}
 
 /* ---------- Googleカレンダー ---------- */
-const GC={token:null,exp:0,cache:{},status:'',bad:false,loading:false,client:null};
-try{const t=JSON.parse(localStorage.getItem(TKEY)||'null');if(t&&t.exp>Date.now()){GC.token=t.token;GC.exp=t.exp}}catch(e){}
+const GC={token:null,exp:0,cache:{},status:'',bad:false,loading:false,client:null,cal:false,drive:false,quiet:false};
+try{const t=JSON.parse(localStorage.getItem(TKEY)||'null');if(t&&t.exp>Date.now()){GC.token=t.token;GC.exp=t.exp;GC.cal=t.cal!==false;GC.drive=!!t.drive}}catch(e){}
 const clientId=()=>(DB.gcal.clientId||GOOGLE_CLIENT_ID||'').trim();
 const gLive=()=>!!GC.token&&GC.exp>Date.now();
 function gDrop(){GC.token=null;GC.exp=0;try{localStorage.removeItem(TKEY)}catch(e){}}
 function gInitClient(){
   if(GC.client)return true;
   if(!(window.google&&google.accounts&&google.accounts.oauth2)||!clientId())return false;
-  GC.client=google.accounts.oauth2.initTokenClient({client_id:clientId(),scope:SCOPES,callback:onToken,
-    error_callback:e=>{GC.status=e&&e.type==='popup_closed'?'ログインの画面が閉じられました。':'ログインを開始できませんでした。ポップアップがブロックされていないか確認してください。';GC.bad=true;renderGoogle()}});
+  GC.client=google.accounts.oauth2.initTokenClient({client_id:clientId(),scope:SCOPES,include_granted_scopes:true,callback:onToken,
+    error_callback:e=>{const quiet=GC.quiet;GC.quiet=false;if(quiet)return;GC.status=e&&e.type==='popup_closed'?'ログインの画面が閉じられました。':'ログインを開始できませんでした。ポップアップがブロックされていないか確認してください。';GC.bad=true;renderGoogle()}});
   return true;
 }
 function gLogin(){
   if(!clientId()){toast('先に「組み方の設定」でクライアントIDを入れてください');return}
   if(!gInitClient()){toast('Googleの読み込みを待っています。数秒後にもう一度押してください');return}
-  const o={prompt:DB.gcal.email?'':'consent'};if(DB.gcal.email)o.login_hint=DB.gcal.email;
+  const o={prompt:DB.gcal.email&&GC.drive?'':'consent'};if(DB.gcal.email)o.login_hint=DB.gcal.email;
   GC.client.requestAccessToken(o);
 }
+/* 期限切れのあと、予定を編集したタイミングで目立たず再接続する（クリック操作の中なのでポップアップが許可される） */
+function gQuietReconnect(){
+  if(GC.quiet||!gInitClient())return;
+  GC.quiet=true;GC.client.requestAccessToken({prompt:'',login_hint:DB.gcal.email||undefined});
+}
 async function onToken(r){
+  GC.quiet=false;
   if(!r||r.error){GC.status='ログインできませんでした（'+esc(r&&(r.error_description||r.error)||'不明なエラー')+'）。';GC.bad=true;renderGoogle();return}
-  if(!google.accounts.oauth2.hasGrantedAnyScope(r,'https://www.googleapis.com/auth/calendar.readonly')){GC.status='カレンダーの閲覧が許可されませんでした。もう一度ログインし、カレンダーへのアクセスにチェックを入れてください。';GC.bad=true;renderGoogle();return}
+  GC.cal=google.accounts.oauth2.hasGrantedAllScopes(r,CAL_SCOPE);
+  GC.drive=google.accounts.oauth2.hasGrantedAllScopes(r,DRIVE_SCOPE);
   GC.token=r.access_token;GC.exp=Date.now()+(+r.expires_in||3600)*1000-60000;
-  try{localStorage.setItem(TKEY,JSON.stringify({token:GC.token,exp:GC.exp}))}catch(e){}
+  try{localStorage.setItem(TKEY,JSON.stringify({token:GC.token,exp:GC.exp,cal:GC.cal,drive:GC.drive}))}catch(e){}
   GC.bad=false;GC.status='';
   try{
     const u=await gApi('https://www.googleapis.com/oauth2/v3/userinfo');
-    DB.gcal.email=u.email||null;DB.gcal.name=u.name||u.email||'Googleアカウント';
-    await gLoadCalendars();
-    GC.cache={};await gSync(true);
+    if(DB.gcal.email&&u.email&&u.email!==DB.gcal.email)syncReset();
+    DB.gcal.email=u.email||null;DB.gcal.name=u.name||u.email||'Googleアカウント';save();
+    if(GC.drive)await syncNow();
+    else{GC.status='ほかの端末との同期が許可されていません。同期するには「ログインし直す」を押し、Googleドライブのアプリデータへのアクセスにチェックを入れてください。';GC.bad=true}
+    if(GC.cal){await gLoadCalendars();GC.cache={};await gSync(true)}
+    else{GC.status=(GC.status?GC.status+' ':'')+'カレンダーの閲覧が許可されていないため、予定は取り込めません。';GC.bad=true;render()}
   }catch(e){gErr(e)}
 }
+
+/* ---------- 端末間の同期（Googleドライブのアプリ専用フォルダ） ---------- */
+const SKEY='dandori:sync',SYNC_NAME='dandori.json';
+const SY={fileId:null,version:null,stamps:null,at:0,busy:false,again:false,err:'',timer:null};
+try{Object.assign(SY,JSON.parse(localStorage.getItem(SKEY)||'{}'),{busy:false,again:false,err:'',timer:null})}catch(e){}
+function sySave(){try{localStorage.setItem(SKEY,JSON.stringify({fileId:SY.fileId,version:SY.version,stamps:SY.stamps,at:SY.at}))}catch(e){}}
+function syncReset(){SY.fileId=null;SY.version=null;SY.stamps=null;SY.at=0;SY.err='';sySave()}
+const canSync=()=>gLive()&&GC.drive;
+const stampsOf=o=>JSON.stringify({u:o.u||{},d:Object.keys(o.days||{}).sort().map(k=>[k,(o.days[k]||{}).u||0])});
+function markDirty(){clearTimeout(SY.timer);if(canSync())SY.timer=setTimeout(syncNow,1500);renderSyncLine()}
+function mergeDB(local,remote){
+  const L=normalize(local),R=normalize(JSON.parse(JSON.stringify(remote)));
+  for(const k of Object.keys(PARTS)){
+    if((R.u[k]||0)>(L.u[k]||0)){
+      if(k==='settings')L.settings=R.settings;
+      else if(k==='routines')L.routines=R.routines;
+      else if(k==='inbox')L.inbox=R.inbox;
+      else{L.gcal.selected=R.gcal.selected;L.gcal.ignore=R.gcal.ignore;L.gcal.clientId=R.gcal.clientId||L.gcal.clientId}
+      L.u[k]=R.u[k];
+    }
+  }
+  for(const[k,rd]of Object.entries(R.days)){
+    const ld=L.days[k];
+    if(!ld||(rd.u||0)>(ld.u||0))L.days[k]=rd;
+  }
+  return L;
+}
+function remotePayload(){const o=JSON.parse(JSON.stringify(DB));delete o.gcal.email;delete o.gcal.name;delete o.gcal.calendars;o.savedAt=Date.now();return o}
+async function driveUpload(){
+  const body=JSON.stringify(remotePayload());
+  let url,init;
+  if(SY.fileId){
+    url=`https://www.googleapis.com/upload/drive/v3/files/${SY.fileId}?uploadType=media&fields=id,version`;
+    init={method:'PATCH',headers:{Authorization:'Bearer '+GC.token,'Content-Type':'application/json'},body};
+  }else{
+    const b='dandori'+uid();
+    const meta=JSON.stringify({name:SYNC_NAME,parents:['appDataFolder'],mimeType:'application/json'});
+    url='https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,version';
+    init={method:'POST',headers:{Authorization:'Bearer '+GC.token,'Content-Type':'multipart/related; boundary='+b},
+      body:`--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${b}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${b}--`};
+  }
+  const r=await fetch(url,init);
+  if(r.status===401){gDrop();throw new Error('auth')}
+  if(!r.ok){let m='';try{m=(await r.json()).error.message}catch(e){}throw new Error('http '+r.status+(m?' '+m:''))}
+  const j=await r.json();SY.fileId=j.id;SY.version=j.version;
+}
+async function syncNow(){
+  if(!canSync())return;
+  if(SY.busy){SY.again=true;return}
+  SY.busy=true;SY.err='';renderSyncLine();
+  try{
+    if(!SY.fileId){
+      const q=encodeURIComponent(`name='${SYNC_NAME}'`);
+      const r=await gApi(`https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=${q}&fields=files(id,version,modifiedTime)&orderBy=modifiedTime desc`);
+      if(r.files&&r.files.length){SY.fileId=r.files[0].id;SY.version=null}
+    }
+    let remoteStamps=SY.stamps;
+    if(SY.fileId){
+      const m=await gApi(`https://www.googleapis.com/drive/v3/files/${SY.fileId}?fields=version`);
+      if(m.version!==SY.version){
+        const remote=await gApi(`https://www.googleapis.com/drive/v3/files/${SY.fileId}?alt=media`);
+        const before=JSON.stringify(DB);
+        DB=mergeDB(DB,remote);SY.version=m.version;remoteStamps=stampsOf(normalize(remote));
+        if(JSON.stringify(DB)!==before){save();renderSettings();if(!drag&&ov.hidden)render();else SY.renderLater=true}
+      }
+    }
+    if(!SY.fileId||stampsOf(DB)!==remoteStamps)await driveUpload();
+    SY.stamps=stampsOf(DB);SY.at=Date.now();sySave();
+  }catch(e){
+    if(e.message==='auth')SY.err='接続の期限が切れたため同期が止まっています。';
+    else if(/403/.test(e.message))SY.err=/insufficient|scope/i.test(e.message)?'Googleドライブへの保存が許可されていません。「ログインし直す」を押してください。':'同期できませんでした。Google CloudでGoogle Drive APIが有効か確認してください。';
+    else if(/404/.test(e.message)){syncReset();SY.err='同期ファイルが見つからなかったので、作り直します。';SY.again=true}
+    else SY.err='同期できませんでした（'+esc(e.message)+'）。';
+  }finally{
+    SY.busy=false;renderSyncLine();
+    if(SY.again){SY.again=false;setTimeout(syncNow,800)}
+  }
+}
+function syncLineHTML(){
+  if(!DB.gcal.email)return'';
+  const t=SY.at?`${new Date(SY.at).getHours()}:${pad(new Date(SY.at).getMinutes())}`:'';
+  let msg,bad=false;
+  if(!GC.drive&&gLive()){msg='同期はオフです（ドライブの許可が必要）';bad=true}
+  else if(SY.busy)msg='同期中…';
+  else if(SY.err){msg=SY.err;bad=true}
+  else if(!gLive())msg=SY.stamps&&stampsOf(DB)!==SY.stamps?'未送信の変更があります。再接続すると同期します':'再接続すると、ほかの端末と同期します';
+  else if(SY.stamps&&stampsOf(DB)!==SY.stamps)msg='変更を送る準備中…';
+  else msg=t?`ほかの端末と同期済み（${t}）`:'同期の準備中…';
+  return `<span class="gstatus${bad?' bad':''}" id="syncLine">${msg}</span>`;
+}
+function renderSyncLine(){const el=$('#syncLine');if(el)el.outerHTML=syncLineHTML()}
 async function gLoadCalendars(){
   const cl=await gApi('https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=reader&maxResults=250');
   const items=cl.items||[];
@@ -514,7 +633,7 @@ function gErr(e){
 }
 function gLogout(){
   if(GC.token&&window.google&&google.accounts&&google.accounts.oauth2){try{google.accounts.oauth2.revoke(GC.token,()=>{})}catch(e){}}
-  gDrop();GC.cache={};GC.status='';GC.bad=false;DB.gcal.email=null;DB.gcal.name=null;save();
+  gDrop();GC.cache={};GC.status='';GC.bad=false;GC.drive=false;GC.cal=false;DB.gcal.email=null;DB.gcal.name=null;syncReset();save();
   if(S().autoReplan)autoPlan(day());save();render();toast('Googleからログアウトしました');
 }
 function evNorm(ev,c,t0){
@@ -543,7 +662,7 @@ async function gFetchDay(date,force){
   return true;
 }
 async function gSync(force){
-  if(!gLive()){renderGoogle();return}
+  if(!gLive()||!GC.cal){renderGoogle();return}
   GC.loading=true;renderGoogle();
   const date=curDate;
   try{
@@ -682,23 +801,28 @@ function renderWeek(){
 function renderGoogle(){
   const p=$('#gPanel');
   if(!clientId()){
-    p.innerHTML=`<div class="gtop">${GLOGO}<span class="gname">Googleカレンダー連携</span></div>
-     <p class="hint">Googleでログインしてカレンダーの予定を取り込むには、Google Cloudで作ったOAuthクライアントIDが必要です。手順はリポジトリのREADMEにあります。</p>
+    p.innerHTML=`<div class="gtop">${GLOGO}<span class="gname">Googleと接続</span></div>
+     <p class="hint">Googleでログインすると、カレンダーの予定の取り込みと、ほかの端末との同期ができます。それにはGoogle Cloudで作ったOAuthクライアントIDが必要です。手順はリポジトリのREADMEにあります。</p>
      <div class="row"><input type="text" id="gClientIn" placeholder="xxxxxxxx.apps.googleusercontent.com" spellcheck="false" autocomplete="off" aria-label="クライアントID"><button class="primary" id="gClientSave" style="flex:0 0 auto">保存</button></div>`;
     return;
   }
   const st=GC.status?`<p class="gstatus${GC.bad?' bad':''}">${GC.status}</p>`:'';
   if(!gLive()){
-    p.innerHTML=`<div class="gtop">${GLOGO}<span class="gname">Googleカレンダー</span></div>
-     ${DB.gcal.email?`<p class="hint">${esc(DB.gcal.email)} の接続が切れています（安全のため1時間ごとに切れます）。</p>`:'<p class="hint">ログインすると、カレンダーの予定が時間軸に入り、それを避けて段取りが組まれます。</p>'}
-     <div class="actions"><button class="gbtn" id="gLogin">${GLOGO}${DB.gcal.email?'再接続':'Googleでログイン'}</button>${DB.gcal.email?'<button class="ghost small" id="gLogout">ログアウト</button>':''}</div>${st}`;
+    p.innerHTML=`<div class="gtop">${GLOGO}<span class="gname">Googleと接続</span></div>
+     ${DB.gcal.email?`<p class="hint">${esc(DB.gcal.email)} の接続が切れています（安全のため1時間ごとに切れます）。予定を編集すると自動でつなぎ直します。</p>`:'<p class="hint">ログインすると、カレンダーの予定が時間軸に入り、それを避けて段取りが組まれます。同じGoogleアカウントでログインした端末どうしで、予定や設定が同期されます。</p>'}
+     <div class="actions"><button class="gbtn" id="gLogin">${GLOGO}${DB.gcal.email?'再接続':'Googleでログイン'}</button>${DB.gcal.email?'<button class="ghost small" id="gLogout">ログアウト</button>':''}</div>${syncLineHTML()}${st}`;
+    return;
+  }
+  if(!GC.cal){
+    p.innerHTML=`<div class="gtop">${GLOGO}<div style="min-width:0;flex:1"><div class="gname">${esc(DB.gcal.name||'Googleアカウント')}</div><div class="gstatus">${esc(DB.gcal.email||'')}</div></div>
+       <button class="ghost small" id="gRelogin">ログインし直す</button><button class="ghost small" id="gLogout">ログアウト</button></div>${syncLineHTML()}${st}`;
     return;
   }
   const c=GC.cache[curDate],evs=gEvents(curDate);
   const info=GC.loading?'読み込み中…':c?`この日の予定 ${evs.length}件 · ${new Date(c.at).getHours()}:${pad(new Date(c.at).getMinutes())} 更新`:'';
   p.innerHTML=`<div class="gtop">${GLOGO}<div style="min-width:0;flex:1"><div class="gname">${esc(DB.gcal.name||'Googleアカウント')}</div><div class="gstatus">${esc(DB.gcal.email||'')}</div></div>
-     <button class="ghost small" id="gReload"${GC.loading?' disabled':''}>再読み込み</button><button class="ghost small" id="gLogout">ログアウト</button></div>
-   <p class="gstatus">${info}</p>${st}
+     <button class="ghost small" id="gReload"${GC.loading||SY.busy?' disabled':''}>再読み込み</button>${GC.drive?'':'<button class="ghost small" id="gRelogin">ログインし直す</button>'}<button class="ghost small" id="gLogout">ログアウト</button></div>
+   <p class="gstatus">${info}</p>${syncLineHTML()}${st}
    <details class="sub"><summary>表示するカレンダー（${DB.gcal.calendars.filter(x=>DB.gcal.selected[x.id]).length}/${DB.gcal.calendars.length}）</summary>
     <div class="calist">${DB.gcal.calendars.map(x=>`<label><input type="checkbox" data-cal="${esc(x.id)}"${DB.gcal.selected[x.id]?' checked':''}><i class="cdot" style="background:${esc(x.color)}"></i><span class="cn">${esc(x.summary)}</span></label>`).join('')}</div></details>`;
 }
@@ -958,19 +1082,20 @@ $('#gPanel').addEventListener('click',e=>{
   const id=e.target.closest('button')&&e.target.closest('button').id;
   if(id==='gLogin')gLogin();
   if(id==='gLogout')gLogout();
-  if(id==='gReload')gSync(true);
+  if(id==='gReload'){gSync(true);syncNow()}
+  if(id==='gRelogin'&&gInitClient())GC.client.requestAccessToken({prompt:'consent',login_hint:DB.gcal.email||undefined});
   if(id==='gClientSave'){const v=$('#gClientIn').value.trim();if(!/\.apps\.googleusercontent\.com$/.test(v)){toast('「〜.apps.googleusercontent.com」で終わるIDを入れてください');return}
-    DB.gcal.clientId=v;GC.client=null;save();renderSettings();renderGoogle();toast('クライアントIDを保存しました')}
+    edit(()=>{DB.gcal.clientId=v});GC.client=null;renderSettings();renderGoogle();toast('クライアントIDを保存しました')}
 });
 $('#gPanel').addEventListener('change',e=>{
   const c=e.target.closest('[data-cal]');if(!c)return;
-  DB.gcal.selected[c.dataset.cal]=c.checked;save();GC.cache={};gSync(true);
+  edit(()=>{DB.gcal.selected[c.dataset.cal]=c.checked});GC.cache={};gSync(true);
 });
 $('#gStrip').addEventListener('click',e=>{const c=e.target.closest('[data-gid]');if(c)openEvent(c.dataset.gid)});
 
 /* ---------- シート ---------- */
 const ov=$('#overlay'),sh=$('#sheet');
-function closeSheet(){ov.hidden=true;sh.innerHTML=''}
+function closeSheet(){ov.hidden=true;sh.innerHTML='';if(SY.renderLater){SY.renderLater=false;render()}}
 ov.addEventListener('click',e=>{if(e.target===ov)closeSheet()});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!ov.hidden)closeSheet()});
 function editStart(d,t){if(t.fixed!=null)return t.fixed;const f=firstStart(d,t);return f===Infinity?540:f}
@@ -1257,13 +1382,16 @@ $('#sNotify').addEventListener('change',async e=>{
   if(p!=='granted'){e.target.checked=false;S().notify=false;save();toast('通知が許可されていません。ブラウザのサイト設定で許可してください');return}
   S().notify=true;save();toast('予定の5分前に通知します');
 });
-$('#sClient').addEventListener('change',e=>{const v=e.target.value.trim();DB.gcal.clientId=v;GC.client=null;save();renderGoogle()});
+$('#sClient').addEventListener('change',e=>{const v=e.target.value.trim();edit(()=>{DB.gcal.clientId=v});GC.client=null;renderGoogle()});
 $('#bkCopy').addEventListener('click',()=>copyText(JSON.stringify(DB)));
 $('#bkRestore').addEventListener('click',e=>{
   const b=e.currentTarget;let o;
   try{o=JSON.parse($('#bkText').value);if(!o||typeof o.days!=='object')throw 0}catch(_){toast('貼り付けた内容を読み取れませんでした。「全データをコピー」で取った文字列をそのまま貼ってください');return}
   if(!b.classList.contains('armed')){b.classList.add('armed');b.textContent='もう一度押すと今のデータを上書きします';return}
-  snap();DB=normalize(o);save();b.classList.remove('armed');b.textContent='貼り付けた内容で上書きする';$('#bkText').value='';
+  snap();const keepMail={email:DB.gcal.email,name:DB.gcal.name,calendars:DB.gcal.calendars};
+  DB=normalize(o);Object.assign(DB.gcal,keepMail);
+  {const now=Date.now();Object.values(DB.days).forEach(d=>d.u=now);Object.keys(PARTS).forEach(k=>DB.u[k]=now);markDirty()}
+  save();b.classList.remove('armed');b.textContent='貼り付けた内容で上書きする';$('#bkText').value='';
   renderSettings();firstPaint=true;render();toast('バックアップから戻しました',true);
 });
 
@@ -1301,12 +1429,18 @@ function makeSample(date){
 DB=load();
 if(!DB){DB=normalize(null);makeSample(curDate);save()}
 renderSettings();render();
+if(canSync())syncNow();
 if(gLive())gSync(true);
 setInterval(()=>{
-  if(curDate===todayStr()&&!drag&&ov.hidden){renderNow(day());renderTimeline(day())}
+  if(!drag&&ov.hidden){
+    if(SY.renderLater){SY.renderLater=false;render()}
+    else if(curDate===todayStr()){renderNow(day());renderTimeline(day())}
+  }
   notifyTick();
 },30000);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&gLive())gSync(false)});
+setInterval(()=>{if(!document.hidden&&canSync())syncNow()},60000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){if(canSync())syncNow();if(gLive())gSync(false)}else if(canSync()&&SY.stamps!==stampsOf(DB))syncNow()});
+window.addEventListener('focus',()=>{if(canSync()&&Date.now()-SY.at>15000)syncNow()});
 </script>
 </body>
 </html>
