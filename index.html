@@ -533,29 +533,88 @@ async function onToken(r){
 
 /* ---------- 端末間の同期（Googleドライブのアプリ専用フォルダ） ---------- */
 const SKEY='dandori:sync',SYNC_NAME='dandori.json';
-const SY={fileId:null,version:null,stamps:null,at:0,busy:false,again:false,err:'',timer:null};
-try{Object.assign(SY,JSON.parse(localStorage.getItem(SKEY)||'{}'),{busy:false,again:false,err:'',timer:null})}catch(e){}
-function sySave(){try{localStorage.setItem(SKEY,JSON.stringify({fileId:SY.fileId,version:SY.version,stamps:SY.stamps,at:SY.at}))}catch(e){}}
+const SYNC_FMT=2;
+const SY={fileId:null,version:null,stamps:null,at:0,fmt:0,busy:false,again:false,err:'',timer:null,asking:false,snooze:false};
+try{Object.assign(SY,JSON.parse(localStorage.getItem(SKEY)||'{}'),{busy:false,again:false,err:'',timer:null,asking:false,snooze:false})}catch(e){}
+/* 旧版の同期で突き合わせ損ねた分を取り直すため、形式が変わったら一度ドライブから読み直す */
+if(SY.fmt!==SYNC_FMT){SY.version=null;SY.stamps=null;SY.fmt=SYNC_FMT}
+function sySave(){try{localStorage.setItem(SKEY,JSON.stringify({fileId:SY.fileId,version:SY.version,stamps:SY.stamps,at:SY.at,fmt:SY.fmt}))}catch(e){}}
 function syncReset(){SY.fileId=null;SY.version=null;SY.stamps=null;SY.at=0;SY.err='';sySave()}
 const canSync=()=>gLive()&&GC.drive;
 const stampsOf=o=>JSON.stringify({u:o.u||{},d:Object.keys(o.days||{}).sort().map(k=>[k,(o.days[k]||{}).u||0])});
 function markDirty(){clearTimeout(SY.timer);if(canSync())SY.timer=setTimeout(syncNow,1500);renderSyncLine()}
+/* 予定の中身（配置の計算結果は除く）が同じかどうか */
+const dayCore=d=>jNoU((d&&d.tasks||[]).map(t=>({...t})));
+const realTasks=d=>(d&&d.tasks||[]).filter(t=>!t.sample);
+const trivialDay=d=>!realTasks(d).length;
+function takePart(L,R,k){
+  if(k==='settings')L.settings=R.settings;
+  else if(k==='routines')L.routines=R.routines;
+  else if(k==='inbox')L.inbox=R.inbox;
+  else{L.gcal.selected=R.gcal.selected;L.gcal.ignore=R.gcal.ignore;L.gcal.clientId=R.gcal.clientId||L.gcal.clientId}
+}
+/* 変更時刻の新しい方を採る。時刻がない（同期を入れる前の）データどうしで中身が違うときは、
+   片方が空や例だけならもう片方を採り、両方に中身があれば conflicts に入れて利用者に選んでもらう */
 function mergeDB(local,remote){
-  const L=normalize(local),R=normalize(JSON.parse(JSON.stringify(remote)));
+  const now=Date.now(),L=normalize(local),R=normalize(JSON.parse(JSON.stringify(remote))),conflicts=[];
   for(const k of Object.keys(PARTS)){
-    if((R.u[k]||0)>(L.u[k]||0)){
-      if(k==='settings')L.settings=R.settings;
-      else if(k==='routines')L.routines=R.routines;
-      else if(k==='inbox')L.inbox=R.inbox;
-      else{L.gcal.selected=R.gcal.selected;L.gcal.ignore=R.gcal.ignore;L.gcal.clientId=R.gcal.clientId||L.gcal.clientId}
-      L.u[k]=R.u[k];
-    }
+    const lu=L.u[k]||0,ru=R.u[k]||0;
+    if(ru>lu){takePart(L,R,k);L.u[k]=ru;continue}
+    if(ru<lu||jNoU(PARTS[k](L))===jNoU(PARTS[k](R)))continue;
+    if(k==='routines'||k==='inbox'){
+      const le=!L[k].length,re=!R[k].length;
+      if(le&&!re)takePart(L,R,k);
+      else if(!le&&re)L.u[k]=now;
+      else conflicts.push({type:'part',k});
+    }else if(k==='gsel'&&!L.gcal.clientId&&R.gcal.clientId){L.gcal.clientId=R.gcal.clientId}
   }
   for(const[k,rd]of Object.entries(R.days)){
-    const ld=L.days[k];
-    if(!ld||(rd.u||0)>(ld.u||0))L.days[k]=rd;
+    const ld=L.days[k],lu=ld&&ld.u||0,ru=rd.u||0;
+    if(!ld||ru>lu){L.days[k]=rd;continue}
+    if(ru<lu||dayCore(ld)===dayCore(rd))continue;
+    const lt=trivialDay(ld),rt=trivialDay(rd);
+    if(lt&&!rt)L.days[k]=rd;
+    else if(!lt&&rt)ld.u=now;
+    else if(!lt&&!rt)conflicts.push({type:'day',k});
+  }
+  for(const[k,ld]of Object.entries(L.days))if(!R.days[k]&&!ld.u&&!trivialDay(ld))ld.u=now;
+  return{db:L,remote:R,conflicts};
+}
+/* 選んだ方針で conflicts を片づける。both は両方の予定を残す（同じ予定は1つにまとめる） */
+function resolveConflicts(L,R,conflicts,how){
+  const now=Date.now();
+  const unionById=(a,b)=>{const ids=new Set(a.map(x=>x.id));return[...a,...b.filter(x=>!ids.has(x.id))]};
+  for(const c of conflicts){
+    if(c.type==='day'){
+      const ld=L.days[c.k],rd=R.days[c.k];
+      if(how==='remote')L.days[c.k]={...rd,u:now};
+      else if(how==='local')ld.u=now;
+      else{
+        const tasks=unionById(realTasks(ld),realTasks(rd)),ids=new Set(tasks.map(t=>t.id));
+        const places=unionById(ld.places||[],rd.places||[]).filter(p=>p.pinned&&ids.has(p.taskId));
+        L.days[c.k]={...ld,tasks,places,needsPlan:true,u:now};
+      }
+    }else{
+      if(how==='remote')takePart(L,R,c.k);
+      else if(how==='both')L[c.k]=unionById(L[c.k],R[c.k]);
+      L.u[c.k]=now;
+    }
   }
   return L;
+}
+function askConflicts(conflicts,L,R,onDone){
+  const label=c=>c.type==='day'?`${dInfo(c.k).md}（${dInfo(c.k).wd}）　この端末 ${realTasks(L.days[c.k]).length}件 ／ ほかの端末 ${realTasks(R.days[c.k]).length}件`:
+    (c.k==='routines'?`ルーティン　この端末 ${L.routines.length}件 ／ ほかの端末 ${R.routines.length}件`:`あとでやる　この端末 ${L.inbox.length}件 ／ ほかの端末 ${R.inbox.length}件`);
+  sh.innerHTML=`<h2>2つの端末の内容が違います</h2>
+   <p class="hint">同期を始める前に、この端末とほかの端末（Googleドライブ）のそれぞれで、同じ日に別々の予定が入っていました。どちらを残すか選んでください。</p>
+   <div class="tasks" style="font-size:13.5px">${conflicts.slice(0,12).map(c=>`<div class="irow" style="grid-template-columns:1fr"><span class="mono">${esc(label(c))}</span></div>`).join('')}${conflicts.length>12?`<div class="empty">ほか ${conflicts.length-12}件</div>`:''}</div>
+   <div class="sheet-actions" style="flex-direction:column;align-items:stretch">
+    <button class="primary" data-how="both">両方の予定を残す</button>
+    <button class="ghost" data-how="remote">ほかの端末の内容にそろえる</button>
+    <button class="ghost" data-how="local">この端末の内容にそろえる</button>
+    <button class="ghost" data-how="later" style="border-color:transparent">あとで決める（それまで同期を止めます）</button></div>`;
+  ov.hidden=false;
+  sh.querySelectorAll('[data-how]').forEach(b=>b.onclick=()=>{ov.hidden=true;sh.innerHTML='';onDone(b.dataset.how)});
 }
 function remotePayload(){const o=JSON.parse(JSON.stringify(DB));delete o.gcal.email;delete o.gcal.name;delete o.gcal.calendars;o.savedAt=Date.now();return o}
 async function driveUpload(){
@@ -576,26 +635,48 @@ async function driveUpload(){
   if(!r.ok){let m='';try{m=(await r.json()).error.message}catch(e){}throw new Error('http '+r.status+(m?' '+m:''))}
   const j=await r.json();SY.fileId=j.id;SY.version=j.version;
 }
+function applyMerged(next){
+  const before=JSON.stringify(DB);DB=next;
+  if(JSON.stringify(DB)!==before){save();renderSettings();if(!drag&&ov.hidden)render();else SY.renderLater=true}
+}
 async function syncNow(){
-  if(!canSync())return;
+  if(!canSync()||SY.asking||SY.snooze)return;
   if(SY.busy){SY.again=true;return}
   SY.busy=true;SY.err='';renderSyncLine();
   try{
-    if(!SY.fileId){
-      const q=encodeURIComponent(`name='${SYNC_NAME}'`);
-      const r=await gApi(`https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=${q}&fields=files(id,version,modifiedTime)&orderBy=modifiedTime desc`);
-      if(r.files&&r.files.length){SY.fileId=r.files[0].id;SY.version=null}
-    }
+    // 毎回ファイル一覧を見る。万一ファイルが2つ以上できていたら、いちばん古いものにまとめる
+    const q=encodeURIComponent(`name='${SYNC_NAME}' and trashed=false`);
+    const list=await gApi(`https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=${q}&fields=files(id,version,createdTime)&orderBy=createdTime&pageSize=20`);
+    const files=list.files||[];
     let remoteStamps=SY.stamps;
-    if(SY.fileId){
-      const m=await gApi(`https://www.googleapis.com/drive/v3/files/${SY.fileId}?fields=version`);
-      if(m.version!==SY.version){
-        const remote=await gApi(`https://www.googleapis.com/drive/v3/files/${SY.fileId}?alt=media`);
-        const before=JSON.stringify(DB);
-        DB=mergeDB(DB,remote);SY.version=m.version;remoteStamps=stampsOf(normalize(remote));
-        if(JSON.stringify(DB)!==before){save();renderSettings();if(!drag&&ov.hidden)render();else SY.renderLater=true}
+    if(files.length){
+      const main=files[0];
+      if(SY.fileId!==main.id){SY.fileId=main.id;SY.version=null}
+      for(const extra of files.slice(1)){
+        try{
+          const ex=await gApi(`https://www.googleapis.com/drive/v3/files/${extra.id}?alt=media`);
+          const m=mergeDB(DB,ex);applyMerged(resolveConflicts(m.db,m.remote,m.conflicts,'both'));
+          await fetch(`https://www.googleapis.com/drive/v3/files/${extra.id}`,{method:'DELETE',headers:{Authorization:'Bearer '+GC.token}});
+        }catch(_){}
+        SY.version=null;
       }
-    }
+      if(main.version!==SY.version){
+        const remote=await gApi(`https://www.googleapis.com/drive/v3/files/${main.id}?alt=media`);
+        const m=mergeDB(DB,remote);
+        if(m.conflicts.length){
+          SY.asking=true;SY.busy=false;renderSyncLine();
+          askConflicts(m.conflicts,m.db,m.remote,how=>{
+            SY.asking=false;
+            if(how==='later'){SY.snooze=true;renderSyncLine();return}
+            applyMerged(resolveConflicts(m.db,m.remote,m.conflicts,how));
+            SY.version=main.version;SY.stamps=stampsOf(m.remote);sySave();
+            toast('内容をそろえました。ほかの端末にも送ります');syncNow();
+          });
+          return;
+        }
+        applyMerged(m.db);SY.version=main.version;remoteStamps=stampsOf(m.remote);
+      }
+    }else{SY.fileId=null}
     if(!SY.fileId||stampsOf(DB)!==remoteStamps)await driveUpload();
     SY.stamps=stampsOf(DB);SY.at=Date.now();sySave();
   }catch(e){
@@ -613,6 +694,8 @@ function syncLineHTML(){
   const t=SY.at?`${new Date(SY.at).getHours()}:${pad(new Date(SY.at).getMinutes())}`:'';
   let msg,bad=false;
   if(!GC.drive&&gLive())return `<div class="actions" id="syncLine"><button class="primary" id="gEnableSync">同期を有効にする</button><span class="gstatus">ほかの端末と同期するには、Googleドライブのアプリ専用領域への保存を許可してください。</span></div>`;
+  else if(SY.asking)msg='どちらの内容を残すか選んでください';
+  else if(SY.snooze)return `<div class="actions" id="syncLine"><span class="gstatus bad">端末どうしの内容が違うため、同期を止めています。</span><button class="ghost small" id="gResume">選び直して再開</button></div>`;
   else if(SY.busy)msg='同期中…';
   else if(SY.err){msg=SY.err;bad=true}
   else if(!gLive())msg=SY.stamps&&stampsOf(DB)!==SY.stamps?'未送信の変更があります。再接続すると同期します':'再接続すると、ほかの端末と同期します';
@@ -1093,6 +1176,7 @@ $('#gPanel').addEventListener('click',e=>{
   if(id==='gLogout')gLogout();
   if(id==='gReload'){gSync(true);syncNow()}
   if(id==='gEnableSync')gEnableSync();
+  if(id==='gResume'){SY.snooze=false;SY.version=null;syncNow()}
   if(id==='gRelogin'&&gInitClient())GC.client.requestAccessToken({prompt:'consent',login_hint:DB.gcal.email||undefined});
   if(id==='gClientSave'){const v=$('#gClientIn').value.trim();if(!/\.apps\.googleusercontent\.com$/.test(v)){toast('「〜.apps.googleusercontent.com」で終わるIDを入れてください');return}
     edit(()=>{DB.gcal.clientId=v});GC.client=null;renderSettings();renderGoogle();toast('クライアントIDを保存しました')}
