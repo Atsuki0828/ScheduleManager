@@ -242,6 +242,32 @@ details.settings>summary{padding:12px 16px;cursor:pointer;font-size:14px}
 .sheet-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:4px}
 .sheet-actions .sp{flex:1}
 .desc{font-size:13.5px;color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere;max-height:160px;overflow:auto;margin:0}
+.blk.sel{box-shadow:0 0 0 2px var(--accent),0 4px 14px color-mix(in srgb,var(--accent) 25%,transparent);z-index:3}
+.blk.sel::after{content:"";position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.trow{user-select:none;-webkit-user-select:none}
+.trow.sel{background:color-mix(in srgb,var(--accent) 11%,var(--sheet));box-shadow:inset 3px 0 0 var(--accent)}
+.selbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:40;background:var(--ink);color:var(--sheet);border-radius:14px;padding:8px 8px 8px 16px;display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;box-shadow:0 12px 32px rgba(0,0,0,.28);max-width:calc(100% - 24px)}
+.selbar .cnt{font-size:14px;white-space:nowrap}
+.selbar .cnt b{font-family:var(--f-mono);font-size:16px;margin-right:2px}
+.selbar .cnt small{display:block;font-size:11px;opacity:.7;line-height:1.2}
+.selbar .sbtns{display:flex;gap:6px;flex-wrap:wrap}
+.selbar .sb{background:transparent;border:1px solid color-mix(in srgb,var(--sheet) 30%,transparent);color:var(--sheet);border-radius:9px;padding:6px 12px;font-size:14px;min-height:40px}
+.selbar .sb:hover,.selbar .sb[aria-expanded="true"]{background:color-mix(in srgb,var(--sheet) 14%,transparent)}
+.selbar .sb.x{border-color:transparent;opacity:.8}
+.sdup{position:relative}
+.dpop{position:absolute;bottom:calc(100% + 10px);left:0;background:var(--sheet);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:4px;min-width:220px;display:flex;flex-direction:column;box-shadow:0 12px 32px rgba(0,0,0,.25)}
+.dpop.right{left:auto;right:0}
+.dpop button{background:transparent;border:0;border-radius:8px;text-align:left;padding:10px 12px;font-size:14.5px;display:flex;flex-direction:column;line-height:1.35}
+.dpop button:hover,.dpop button:focus-visible{background:color-mix(in srgb,var(--accent) 12%,var(--sheet));outline:none}
+.dpop small{font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+body.hasbar .app{padding-bottom:120px}
+body.hasbar .toast{bottom:calc(86px + env(safe-area-inset-bottom,0px))}
+@media (max-width:560px){
+  .selbar{left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));transform:none;max-width:none;padding:10px}
+  .selbar .sbtns{width:100%}
+  .selbar .sb{flex:1 1 auto}
+  body.hasbar .toast{bottom:calc(132px + env(safe-area-inset-bottom,0px))}
+}
 .ctx{position:fixed;z-index:55;background:var(--sheet);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:4px;min-width:150px;display:flex;flex-direction:column}
 .ctx .ctit{font-size:11.5px;color:var(--muted);padding:4px 10px 2px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ctx button{background:transparent;border:0;border-radius:6px;text-align:left;padding:7px 10px;font-size:14px}
@@ -375,7 +401,7 @@ details.settings>summary{padding:12px 16px;cursor:pointer;font-size:14px}
       <div class="gstrip" id="gStrip" hidden></div>
       <div class="tlhead">
         <div class="key"><span><i class="kf"></i>時刻を決めた予定</span><span><i class="ka"></i>自動で入れた予定</span><span><i class="kg"></i>Googleカレンダー</span><span><i class="kb"></i>休憩</span></div>
-        <span class="hint">ドラッグで移動・下端で長さ調整（スマホは長押し）</span>
+        <span class="hint" id="tlHint">クリックで選択（Shiftで複数）・ダブルクリックで編集・右クリックで複製など・ドラッグで移動</span>
       </div>
       <div class="tl-wrap" id="tlWrap"><div class="timeline" id="timeline"></div></div>
     </section>
@@ -384,6 +410,7 @@ details.settings>summary{padding:12px 16px;cursor:pointer;font-size:14px}
 
 <div class="overlay" id="overlay" hidden><div class="sheet" id="sheet" role="dialog" aria-modal="true"></div></div>
 <div class="ctx" id="ctx" role="menu" hidden></div>
+<div class="selbar" id="selBar" role="toolbar" aria-label="選択中の予定の操作" hidden></div>
 <div class="toast" id="toast" hidden></div>
 
 <script>
@@ -618,7 +645,8 @@ function render(){
   $('#dMd').textContent=info.md;const wd=$('#dWd');wd.textContent=info.wd;wd.className='wd'+(info.w===0?' sun':info.w===6?' sat':'');
   $('#todayBtn').hidden=curDate===todayStr();
   $('#sampleBanner').hidden=!d.tasks.some(t=>t.sample);
-  renderStats(d);renderWeek();renderGoogle();renderTasks(d);renderInbox();renderRoutines();renderCarry(d);renderNow(d);renderBalance(d);renderStrip();renderTimeline(d);
+  pruneSel();
+  renderStats(d);renderWeek();renderGoogle();renderTasks(d);renderInbox();renderRoutines();renderCarry(d);renderNow(d);renderBalance(d);renderStrip();renderTimeline(d);renderSelBar();
 }
 function covered(bl,a,b){
   const iv=bl.map(x=>[Math.max(a,x.start),Math.min(b,x.start+x.dur)]).filter(([s,e])=>e>s).sort((p,q)=>p[0]-q[0]);
@@ -684,7 +712,7 @@ function renderTasks(d){
     const ps=d.places.filter(p=>p.taskId===t.id).sort((a,b)=>a.start-b.start);
     const when=t.fixed!=null?`<span class="t">${fmt(t.fixed)}–${fmt(t.fixed+t.dur)}</span>`:ps.length?`<span class="t">${ps.map(p=>fmt(p.start)).join(' / ')} 〜</span>`:'';
     const r=remOf(d,t);
-    return `<div class="trow k-${t.cat}${t.done?' done':''}" data-id="${t.id}">
+    return `<div class="trow k-${t.cat}${t.done?' done':''}${SEL.has('t:'+t.id)?' sel':''}" data-id="${t.id}" data-key="t:${t.id}" tabindex="0">
       <button class="chk" data-act="done" aria-label="${t.done?'未完了に戻す':'完了にする'}" aria-pressed="${t.done}">✓</button>
       <div style="min-width:0"><div class="ttitle">${esc(t.title)}</div>
         <div class="tmeta">${when}<span>${durL(t.dur)}</span>${t.fixed==null?`<span class="prio p${t.prio}">${PRIO[t.prio]}</span>`:''}${t.split?'<span>分割可</span>':''}${t.routineId?'<span>ルーティン</span>':''}${r?`<span class="miss">未配置 ${durL(r)}</span>`:''}</div></div>
@@ -778,11 +806,12 @@ function renderTimeline(d){
     let title=esc(nameOf(d,b));
     const ps=parts[b.taskId];if(ps&&ps.length>1)title+=` <span class="tm">${ps.indexOf(b)+1}/${ps.length}</span>`;
     const hh=b.dur*PPM,compact=hh<40;
-    const cls=['blk','k-'+cat,b.fixed?'fixed':'',b.gcal?'gcal':'',brk?'brk':'',t&&t.done?'done':'',compact?'compact':'',it.n>1?'clash':'',nextB===b?'next':''].join(' ');
+    const cls=['blk','k-'+cat,b.fixed?'fixed':'',b.gcal?'gcal':'',brk?'brk':'',t&&t.done?'done':'',compact?'compact':'',it.n>1?'clash':'',nextB===b?'next':'',SEL.has(keyOf(b))?'sel':''].join(' ');
+    const bk=keyOf(b);
     const w='(100% - var(--gut) - 10px)';
     const kc=b.gcal?`--kc:${esc(b.gcal.color)};`:'';
     const tag=b.gcal?'':t&&t.routineId&&!compact?'<span class="rt">ルーティン</span>':'';
-    h+=`<div class="${cls}" data-id="${esc(b.id)}" tabindex="0" role="button" aria-label="${fmt(b.start)}から${durL(b.dur)} ${esc(nameOf(d,b))}"
+    h+=`<div class="${cls}" data-id="${esc(b.id)}"${bk?` data-key="${esc(bk)}" aria-pressed="${SEL.has(bk)}"`:''} tabindex="0" role="button" aria-label="${fmt(b.start)}から${durL(b.dur)} ${esc(nameOf(d,b))}"
       style="${kc}top:${y(b.start)+1}px;height:${Math.max(hh-2,12)}px;left:calc(var(--gut) + 4px + ${w} * ${it.col/it.n});width:calc(${w} / ${it.n} - 3px)">
       <div class="bt"><span class="tm">${fmt(b.start)}${compact?'':'–'+fmt(b.start+b.dur)}</span>${compact?`<span class="ti">${title}</span>`:''}${!b.fixed&&b.pinned?PIN:''}${tag}</div>
       ${compact?'':`<div class="ti">${title}</div>`}${b.gcal?'':'<div class="grip" aria-hidden="true"></div>'}</div>`;
@@ -797,9 +826,10 @@ let drag=null;
 const findBlock=(d,id)=>blocks(d).find(b=>b.id===id);
 const tlEl=$('#timeline');
 tlEl.addEventListener('pointerdown',e=>{
-  const el=e.target.closest('.blk');if(!el||e.button>0||e.ctrlKey)return;
+  const el=e.target.closest('.blk');if(!el||e.button>0||(e.ctrlKey&&isMac))return;
   const d=day(),b=findBlock(d,el.dataset.id);if(!b)return;
-  drag={el,b,mode:e.target.closest('.grip')?'resize':'move',y0:e.clientY,moved:false,dm:0,armed:!b.gcal&&(e.pointerType!=='touch'||!!e.target.closest('.grip'))};
+  drag={el,b,mode:e.target.closest('.grip')?'resize':'move',y0:e.clientY,moved:false,dm:0,armed:!b.gcal&&(e.pointerType!=='touch'||!!e.target.closest('.grip')),
+    add:e.shiftKey||e.metaKey||e.ctrlKey||e.pointerType==='touch'};
   if(!drag.armed&&!b.gcal)drag.timer=setTimeout(()=>{if(drag){drag.armed=true;el.classList.add('lift');try{navigator.vibrate&&navigator.vibrate(8)}catch(_){}}},230);
   try{el.setPointerCapture(e.pointerId)}catch(_){}
 });
@@ -822,14 +852,24 @@ function endDrag(commit){
       if(g.mode==='move'){const ns=b.start+g.dm;if(b.fixed)t.fixed=ns;else{const p=d.places.find(x=>x.id===b.id);p.start=ns;p.pinned=true}}
       else{const nd=Math.max(5,b.dur+g.dm);if(b.fixed)t.dur=nd;else{const p=d.places.find(x=>x.id===b.id);if(t)t.dur=Math.max(5,t.dur+(nd-p.dur));p.dur=nd;p.pinned=true}}
     });
-  }else if(commit){openBlock(g.b);render()}
+  }else if(commit){
+    g.el.classList.remove('lift','dragging');
+    const k=keyOf(g.b);
+    if(k){if(g.add){SEL.has(k)?SEL.delete(k):SEL.add(k)}else SEL=new Set([k]);paintSel()}
+  }
   else render();
 }
 function openBlock(b){if(b.gcal)openEvent(b.gid);else if(b.taskId==='__break')openBreak(b.id);else openEditor(b.taskId)}
 tlEl.addEventListener('pointerup',()=>endDrag(true));
 tlEl.addEventListener('pointercancel',()=>endDrag(false));
-tlEl.addEventListener('keydown',e=>{const el=e.target.closest('.blk');if(el&&(e.key==='Enter'||e.key===' ')){e.preventDefault();const b=findBlock(day(),el.dataset.id);if(b)openBlock(b)}});
+tlEl.addEventListener('keydown',e=>{
+  const el=e.target.closest('.blk');if(!el)return;const b=findBlock(day(),el.dataset.id);if(!b)return;
+  if(e.key==='Enter'){e.preventDefault();openBlock(b)}
+  if(e.key===' '){e.preventDefault();const k=keyOf(b);if(k){e.shiftKey?(SEL.has(k)?SEL.delete(k):SEL.add(k)):(SEL.has(k)&&SEL.size===1?SEL.clear():SEL=new Set([k]));paintSel()}}
+});
+tlEl.addEventListener('dblclick',e=>{const el=e.target.closest('.blk');if(!el)return;const b=findBlock(day(),el.dataset.id);if(b){window.getSelection&&window.getSelection().removeAllRanges();openBlock(b)}});
 tlEl.addEventListener('click',e=>{
+  if(!e.target.closest('.blk,.gap')){clearSel();return}
   const g=e.target.closest('.gap');if(!g)return;
   $('#tFixOn').checked=true;$('#tFix').disabled=false;$('#tFix').value=fmt(+g.dataset.start%1440);
   $('#tTitle').focus({preventScroll:true});$('#addForm').scrollIntoView({behavior:'smooth',block:'start'});
@@ -866,8 +906,12 @@ $('#addInbox').addEventListener('click',()=>{
 $('#taskList').addEventListener('click',e=>{
   const row=e.target.closest('.trow');if(!row)return;const d=day(),t=taskOf(d,row.dataset.id);if(!t)return;
   if(e.target.closest('[data-act=done]')){mutate(d=>{t.done=!t.done;if(t.done)d.places.forEach(p=>{if(p.taskId===t.id)p.pinned=true})});return}
-  openEditor(t.id);
+  const k='t:'+t.id,add=e.shiftKey||e.metaKey||e.ctrlKey||lastPT==='touch';
+  if(add){SEL.has(k)?SEL.delete(k):SEL.add(k)}else SEL=new Set([k]);
+  paintSel();
 });
+$('#taskList').addEventListener('dblclick',e=>{const row=e.target.closest('.trow');if(row&&!e.target.closest('[data-act]'))openEditor(row.dataset.id)});
+$('#taskList').addEventListener('keydown',e=>{const row=e.target.closest('.trow');if(row&&e.key==='Enter'&&e.target===row){e.preventDefault();openEditor(row.dataset.id)}});
 $('#inboxList').addEventListener('click',e=>{
   const row=e.target.closest('.irow');if(!row)return;const i=DB.inbox.findIndex(x=>x.id===row.dataset.id);if(i<0)return;const t=DB.inbox[i];
   const act=e.target.closest('[data-act]');if(!act)return;
@@ -895,7 +939,7 @@ $('#copyBtn').addEventListener('click',()=>{
   copyText(lines.join('\n'));
 });
 $('#clearSample').addEventListener('click',()=>mutate(d=>{const ids=new Set(d.tasks.filter(t=>t.sample).map(t=>t.id));d.tasks=d.tasks.filter(t=>!t.sample);d.places=d.places.filter(p=>!ids.has(p.taskId)&&p.taskId!=='__break')}));
-function goDate(s){curDate=s;firstPaint=true;render();if(gLive())gSync(false)}
+function goDate(s){curDate=s;SEL.clear();firstPaint=true;render();if(gLive())gSync(false)}
 $('#prevDay').addEventListener('click',()=>goDate(shift(curDate,-1)));
 $('#nextDay').addEventListener('click',()=>goDate(shift(curDate,1)));
 $('#todayBtn').addEventListener('click',()=>goDate(todayStr()));
@@ -988,24 +1032,97 @@ function openEvent(gid){
   if(!e.allDay)$('#evIgn').onclick=()=>{closeSheet();mutate(()=>{const L=DB.gcal.ignore[curDate]=DB.gcal.ignore[curDate]||[];const i=L.indexOf(gid);if(i>=0)L.splice(i,1);else L.push(gid)},{msg:ign?'この予定を避けて組み直しました':'この予定を無視して組み直しました'})};
 }
 
-/* ---------- 右クリックメニュー（編集・複製） ---------- */
-const ctx=$('#ctx');let ctxTarget=null;
-function closeCtx(){ctx.hidden=true;ctxTarget=null}
+/* ---------- 選択（クリック・Shift・タップ） ---------- */
+const isMac=/Mac|iPhone|iPad/.test(navigator.platform||'');
+let lastPT='mouse';
+document.addEventListener('pointerdown',e=>{lastPT=e.pointerType||'mouse'},true);
+let SEL=new Set();
+function keyOf(b){if(!b)return null;if(b.gcal)return'g:'+b.gid;if(b.taskId&&b.taskId!=='__break')return't:'+b.taskId;return null}
+function selItems(){
+  const d=day(),ev=gEvents(curDate),out=[];
+  for(const k of SEL){
+    if(k.startsWith('t:')){const t=taskOf(d,k.slice(2));if(t)out.push({k,t})}
+    else{const e=ev.find(x=>x.id===k.slice(2));if(e)out.push({k,e})}
+  }
+  return out;
+}
+function pruneSel(){const ok=new Set(selItems().map(x=>x.k));for(const k of[...SEL])if(!ok.has(k))SEL.delete(k)}
+function paintSel(){
+  pruneSel();
+  document.querySelectorAll('[data-key]').forEach(el=>{const on=SEL.has(el.dataset.key);el.classList.toggle('sel',on);if(el.classList.contains('blk'))el.setAttribute('aria-pressed',on)});
+  renderSelBar();
+}
+function clearSel(){if(!SEL.size)return;SEL.clear();paintSel()}
+const itemTitle=x=>x.t?x.t.title:x.e.title;
+const selLabel=items=>items.length===1?`「${itemTitle(items[0])}」`:`${items.length}件`;
 const md=s=>{const[,m,d]=s.split('-').map(Number);return`${m}/${d}`};
 const weekDates=s=>{const mon=shift(s,-((dInfo(s).w+6)%7));return[0,1,2,3,4,5,6].map(i=>shift(mon,i))};
+function dupOptsHTML(role){
+  const wk=weekDates(curDate),nx=shift(curDate,1),r=role?` role="${role}"`:'';
+  return `<button${r} data-c="dup-same">その日に複製<small>${md(curDate)}（${dInfo(curDate).wd}）</small></button>
+    <button${r} data-c="dup-next">次の日に複製<small>${md(nx)}（${dInfo(nx).wd}）</small></button>
+    <button${r} data-c="dup-week">その週に複製<small>${md(wk[0])}〜${md(wk[6])} の他の6日</small></button>`;
+}
+
+/* ---------- 選択した予定への操作 ---------- */
+function dupItems(items,mode){
+  const copies=items.map(x=>{
+    if(x.e){const e=x.e;if(e.allDay)return null;return{src:{start:e.start,dur:e.dur},c:{id:uid(),title:e.title,cat:'work',dur:Math.max(5,Math.round(e.dur/5)*5),prio:2,fixed:e.start,split:false,done:false}}}
+    const t=x.t,c={...t,id:uid(),done:false};delete c.sample;delete c.routineId;delete c.from;
+    return{src:t.fixed!=null?{start:t.fixed,dur:t.dur}:null,c};
+  }).filter(Boolean);
+  if(!copies.length){toast('終日の予定は複製できません');return}
+  const label=selLabel(items);
+  if(mode==='same'){
+    // 時刻つきの予定は、選んだ予定の並びを保ったまま、いちばん遅い予定の後ろへ
+    const fx=copies.filter(x=>x.src);
+    if(fx.length){const minS=Math.min(...fx.map(x=>x.src.start)),maxE=Math.max(...fx.map(x=>x.src.start+x.src.dur)),off=snapUp(maxE+S().buffer)-minS;fx.forEach(x=>x.c.fixed=x.src.start+off)}
+    mutate(d=>copies.forEach(x=>d.tasks.push(x.c)),{msg:`${label}をこの日に複製しました`});
+    return;
+  }
+  const targets=mode==='next'?[shift(curDate,1)]:weekDates(curDate).filter(x=>x!==curDate);
+  mutate(()=>{
+    for(const ds of targets){
+      const dd=DB.days[ds]||(DB.days[ds]={tasks:[],places:[]});
+      copies.forEach(x=>dd.tasks.push({...x.c,id:uid()}));dd.needsPlan=true;
+    }
+  },{replan:false,msg:mode==='next'?`${label}を${md(targets[0])}（${dInfo(targets[0]).wd}）に複製しました`:`${label}をこの週の他の${targets.length}日に複製しました`});
+}
+function doneItems(items){
+  const ts=items.filter(x=>x.t).map(x=>x.t);if(!ts.length){toast('Googleカレンダーの予定は完了にできません');return}
+  const all=ts.every(t=>t.done);
+  mutate(d=>ts.forEach(t=>{t.done=!all;if(t.done)d.places.forEach(p=>{if(p.taskId===t.id)p.pinned=true})}),{msg:all?`${selLabel(items)}を未完了に戻しました`:`${selLabel(items)}を完了にしました`});
+}
+function delItems(items){
+  const ts=items.filter(x=>x.t).map(x=>x.t);
+  if(!ts.length){toast('Googleカレンダーの予定はここでは消せません。詳細の「配置では無視する」を使ってください');return}
+  const ids=new Set(ts.map(t=>t.id));
+  SEL.clear();
+  mutate(d=>{d.tasks=d.tasks.filter(t=>!ids.has(t.id));d.places=d.places.filter(p=>!ids.has(p.taskId))},{msg:`${ts.length===1?`「${ts[0].title}」`:ts.length+'件'}を削除しました`});
+}
+function editItem(x){if(x.t)openEditor(x.t.id);else openEvent(x.e.id)}
+function runAct(k,items){
+  if(!items.length)return;
+  if(k==='edit')editItem(items[0]);
+  else if(k==='done')doneItems(items);
+  else if(k==='del')delItems(items);
+  else if(k==='dup-same')dupItems(items,'same');
+  else if(k==='dup-next')dupItems(items,'next');
+  else if(k==='dup-week')dupItems(items,'week');
+}
+
+/* ---------- 右クリックメニュー（パソコン） ---------- */
+const ctx=$('#ctx');
+function closeCtx(){ctx.hidden=true}
 let subTimer=null;
-function openCtx(x,y,b){
-  const d=day();ctxTarget=b;
-  const editLabel=b.gcal?'詳細を見る':'編集';
-  const canDup=b.taskId!=='__break';
-  const wk=weekDates(curDate),nx=shift(curDate,1);
-  ctx.innerHTML=`<div class="ctit">${esc(nameOf(d,b))}</div><button role="menuitem" data-c="edit">${editLabel}</button>${canDup?`
-    <div class="dupwrap"><button role="menuitem" data-c="dup" aria-haspopup="menu" aria-expanded="false">複製<span class="arr" aria-hidden="true">›</span></button>
-      <div class="ctx-sub" role="menu" aria-label="複製先" hidden>
-        <button role="menuitem" data-c="dup-same">その日に複製<small>${md(curDate)}（${dInfo(curDate).wd}）</small></button>
-        <button role="menuitem" data-c="dup-next">次の日に複製<small>${md(nx)}（${dInfo(nx).wd}）</small></button>
-        <button role="menuitem" data-c="dup-week">その週に複製<small>${md(wk[0])}〜${md(wk[6])} の他の6日</small></button>
-      </div></div>`:''}`;
+function openCtx(x,y){
+  const items=selItems();if(!items.length)return;
+  const one=items.length===1,tasks=items.filter(i=>i.t),canDup=items.some(i=>i.t||!i.e.allDay);
+  ctx.innerHTML=`<div class="ctit">${one?esc(itemTitle(items[0])):items.length+'件を選択中'}</div>
+    ${one?`<button role="menuitem" data-c="edit">${items[0].e?'詳細を見る':'編集'}</button>`:''}
+    ${canDup?`<div class="dupwrap"><button role="menuitem" data-c="dup" aria-haspopup="menu" aria-expanded="false">複製<span class="arr" aria-hidden="true">›</span></button>
+      <div class="ctx-sub" role="menu" aria-label="複製先" hidden>${dupOptsHTML('menuitem')}</div></div>`:''}
+    ${tasks.length?`<button role="menuitem" data-c="done">${tasks.every(i=>i.t.done)?'未完了に戻す':'完了にする'}</button><button role="menuitem" data-c="del">削除</button>`:''}`;
   ctx.hidden=false;
   const r=ctx.getBoundingClientRect();
   ctx.style.left=Math.max(8,Math.min(x,innerWidth-r.width-8))+'px';
@@ -1026,39 +1143,13 @@ function openSub(focus){
   if(focus)sub.querySelector('button').focus();
 }
 function closeSub(){const sub=ctx.querySelector('.ctx-sub'),btn=ctx.querySelector('[data-c=dup]');if(sub){sub.hidden=true;btn.setAttribute('aria-expanded','false')}}
-function copyOf(b,d){
-  if(b.gcal){const e=b.gcal;return{id:uid(),title:e.title,cat:'work',dur:Math.max(5,Math.round(e.dur/5)*5),prio:2,fixed:e.start,split:false,done:false}}
-  const t=taskOf(d,b.taskId);if(!t)return null;
-  const c={...t,id:uid(),done:false};delete c.sample;delete c.routineId;delete c.from;return c;
-}
-function dupBlock(b,mode){
-  const src=day(),base=copyOf(b,src);if(!base)return;
-  const name=base.title;
-  if(mode==='same'){
-    if(base.fixed!=null)base.fixed=snapUp(b.start+b.dur+S().buffer);
-    mutate(d=>d.tasks.push(base),{msg:`「${name}」をこの日に複製しました`});return;
-  }
-  const targets=mode==='next'?[shift(curDate,1)]:weekDates(curDate).filter(x=>x!==curDate);
-  mutate(()=>{
-    for(const ds of targets){
-      const dd=DB.days[ds]||(DB.days[ds]={tasks:[],places:[]});
-      dd.tasks.push({...base,id:uid()});dd.needsPlan=true;
-    }
-  },{replan:false,msg:mode==='next'?`「${name}」を${md(targets[0])}（${dInfo(targets[0]).wd}）に複製しました`:`「${name}」をこの週の他の${targets.length}日に複製しました`});
-}
-let lastPT='mouse';
-ctx.addEventListener('pointerdown',e=>{lastPT=e.pointerType||'mouse'});
 ctx.addEventListener('click',e=>{
-  const c=e.target.closest('[data-c]');if(!c||!ctxTarget)return;const b=ctxTarget,k=c.dataset.c;
+  const c=e.target.closest('[data-c]');if(!c)return;const k=c.dataset.c,items=selItems();
   if(k==='dup'){
-    if(lastPT==='touch'||lastPT==='pen'||e.detail===0){const sub=ctx.querySelector('.ctx-sub');sub.hidden?openSub(e.detail===0):closeSub();return}
-    closeCtx();dupBlock(b,'same');return;
+    if(lastPT!=='mouse'||e.detail===0){const sub=ctx.querySelector('.ctx-sub');sub.hidden?openSub(e.detail===0):closeSub();return}
+    closeCtx();dupItems(items,'same');return;
   }
-  closeCtx();
-  if(k==='edit')openBlock(b);
-  else if(k==='dup-same')dupBlock(b,'same');
-  else if(k==='dup-next')dupBlock(b,'next');
-  else if(k==='dup-week')dupBlock(b,'week');
+  closeCtx();runAct(k,items);
 });
 ctx.addEventListener('keydown',e=>{
   if(e.key==='Escape'){const sub=ctx.querySelector('.ctx-sub');if(sub&&!sub.hidden){closeSub();ctx.querySelector('[data-c=dup]').focus()}else closeCtx();e.stopPropagation();return}
@@ -1071,21 +1162,65 @@ ctx.addEventListener('keydown',e=>{
     const i=bs.indexOf(document.activeElement);bs[(i+(e.key==='ArrowDown'?1:-1)+bs.length)%bs.length].focus();
   }
 });
-document.addEventListener('pointerdown',e=>{if(!ctx.hidden&&!e.target.closest('#ctx'))closeCtx()},true);
+document.addEventListener('pointerdown',e=>{
+  if(!ctx.hidden&&!e.target.closest('#ctx'))closeCtx();
+  const pop=$('#selBar .dpop');if(pop&&!pop.hidden&&!e.target.closest('.sdup'))closeDpop();
+},true);
 window.addEventListener('blur',closeCtx);
 $('#tlWrap').addEventListener('scroll',closeCtx,{passive:true});
+function ctxOn(k,x,y){if(!SEL.has(k)){SEL=new Set([k]);paintSel()}openCtx(x,y)}
 tlEl.addEventListener('contextmenu',e=>{
   const el=e.target.closest('.blk');if(!el)return;e.preventDefault();
+  if(lastPT==='touch')return; // スマホの長押しはドラッグに使う（操作は下のバーから）
   if(drag&&drag.moved)return;
   if(drag){clearTimeout(drag.timer);drag.el.classList.remove('lift');drag=null}
-  const b=findBlock(day(),el.dataset.id);if(b)openCtx(e.clientX,e.clientY,b);
+  const k=keyOf(findBlock(day(),el.dataset.id));if(k)ctxOn(k,e.clientX,e.clientY);
 });
 $('#taskList').addEventListener('contextmenu',e=>{
   const row=e.target.closest('.trow');if(!row)return;e.preventDefault();
-  const d=day(),t=taskOf(d,row.dataset.id);if(!t)return;
-  const b=t.fixed!=null?{id:'f_'+t.id,taskId:t.id,start:t.fixed,dur:t.dur,fixed:true}:{id:'t_'+t.id,taskId:t.id,start:firstStart(d,t),dur:t.dur};
-  openCtx(e.clientX,e.clientY,b);
+  if(lastPT==='touch')return;
+  ctxOn('t:'+row.dataset.id,e.clientX,e.clientY);
 });
+
+/* ---------- 選択バー（スマホでもパソコンでも） ---------- */
+const touchUI=()=>matchMedia('(hover: none)').matches;
+function renderSelBar(){
+  const bar=$('#selBar'),items=selItems();
+  if(!items.length){bar.hidden=true;document.body.classList.remove('hasbar');return}
+  const one=items.length===1,tasks=items.filter(i=>i.t),canDup=items.some(i=>i.t||!i.e.allDay);
+  bar.innerHTML=`<span class="cnt"><b>${items.length}</b>件を選択中<small>${touchUI()?'ほかの予定をタップで追加':'Shift+クリックで追加'}</small></span>
+    <div class="sbtns">
+      ${one?`<button class="sb" data-s="edit">${items[0].e?'詳細':'編集'}</button>`:''}
+      ${canDup?`<div class="sdup"><button class="sb" data-s="dup" aria-haspopup="menu" aria-expanded="false">複製 ▾</button><div class="dpop" role="menu" aria-label="複製先" hidden>${dupOptsHTML('menuitem')}</div></div>`:''}
+      ${tasks.length?`<button class="sb" data-s="done">${tasks.every(i=>i.t.done)?'未完了':'完了'}</button><button class="sb" data-s="del">削除</button>`:''}
+      <button class="sb x" data-s="clear">選択を解除</button>
+    </div>`;
+  bar.hidden=false;document.body.classList.add('hasbar');
+}
+function closeDpop(){const p=$('#selBar .dpop'),b=$('#selBar [data-s=dup]');if(p){p.hidden=true;b.setAttribute('aria-expanded','false')}}
+$('#selBar').addEventListener('click',e=>{
+  const c=e.target.closest('[data-c]');
+  if(c){closeDpop();runAct(c.dataset.c,selItems());return}
+  const s=e.target.closest('[data-s]');if(!s)return;const k=s.dataset.s,items=selItems();
+  if(k==='dup'){
+    const p=$('#selBar .dpop');
+    if(!p.hidden){closeDpop();return}
+    p.hidden=false;s.setAttribute('aria-expanded','true');p.classList.remove('right');
+    if(p.getBoundingClientRect().right>innerWidth-8)p.classList.add('right');
+    p.querySelector('button').focus({preventScroll:true});
+    return;
+  }
+  if(k==='clear')clearSel();
+  else runAct(k,items);
+});
+$('#selBar').addEventListener('keydown',e=>{if(e.key==='Escape'){const p=$('#selBar .dpop');if(p&&!p.hidden){closeDpop();$('#selBar [data-s=dup]').focus()}else clearSel();e.stopPropagation()}});
+document.addEventListener('keydown',e=>{
+  if(!ov.hidden||!ctx.hidden||/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))return;
+  if(e.key==='Escape')clearSel();
+  if((e.key==='Delete'||e.key==='Backspace')&&SEL.size){e.preventDefault();delItems(selItems())}
+});
+$('#tlHint').textContent=touchUI()?'タップで選択（続けてタップで複数）・長押ししてドラッグで移動・下のバーで編集や複製':'クリックで選択（Shiftで複数）・ダブルクリックで編集・右クリックで複製など・ドラッグで移動';
+
 
 /* ---------- ルーティンの操作 ---------- */
 $('#rAdd').addEventListener('click',()=>{
