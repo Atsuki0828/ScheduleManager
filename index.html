@@ -4,50 +4,48 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>段取り帳</title>
-<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Shippori+Mincho+B1:wght@600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
-/* Layout: 手帳の見開き。左ページ＝やることの一覧と入力、右ページ＝方眼の時間軸 */
+/* Layout: 手帳の見開き。左ページ＝入力とリスト、右ページ＝方眼の時間軸。上に一週間の帯 */
 :root{
   --paper:#eef0f4; --sheet:#ffffff; --ink:#1b2130; --muted:#646d82; --line:#d9dde6; --grid:#edf0f5;
-  --accent:#2b47a0; --accent-ink:#ffffff; --hi:#e9b52f; --now:#d23f28; --warn:#b4432c; --warn-bg:#fbe8e3;
-  --k-class:#3550b5; --k-study:#0f7f73; --k-work:#b7700a; --k-hobby:#9a4a8f; --k-life:#5d7d45; --k-move:#6b7385; --k-rest:#8a90a0;
+  --accent:#2b47a0; --accent-ink:#ffffff; --hi:#e9b52f; --now:#d23f28; --warn:#b4432c; --warn-bg:#fbe8e3; --ok:#2f7d4f;
+  --k-class:#3550b5; --k-study:#0f7f73; --k-work:#b7700a; --k-hobby:#9a4a8f; --k-life:#5d7d45; --k-move:#6b7385; --k-rest:#8a90a0; --k-gcal:#1f6fd1;
   --f-display:"Shippori Mincho B1","Hiragino Mincho ProN","Yu Mincho",serif;
   --f-body:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic UI","Noto Sans JP",system-ui,sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
   --ppm:1.4px; --gut:52px;
+  color-scheme:light;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
 }
-@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+@media (prefers-color-scheme: dark){ :root{
   --paper:#11141b; --sheet:#181c25; --ink:#e5e8ef; --muted:#9097a8; --line:#2b3140; --grid:#1f2430;
-  --accent:#8ea2ff; --accent-ink:#0e1220; --hi:#f0c24e; --now:#ff6b50; --warn:#ff8a70; --warn-bg:#3a1f1a;
-  --k-class:#8ea2ff; --k-study:#4fd1bf; --k-work:#f0b04a; --k-hobby:#e08ad4; --k-life:#9ccb7d; --k-move:#a3abbd; --k-rest:#7d8496;
+  --accent:#8ea2ff; --accent-ink:#0e1220; --hi:#f0c24e; --now:#ff6b50; --warn:#ff8a70; --warn-bg:#3a1f1a; --ok:#6fd39a;
+  --k-class:#8ea2ff; --k-study:#4fd1bf; --k-work:#f0b04a; --k-hobby:#e08ad4; --k-life:#9ccb7d; --k-move:#a3abbd; --k-rest:#7d8496; --k-gcal:#6aa8ff;
   color-scheme:dark;
 }}
-:root[data-theme="dark"]{
-  --paper:#11141b; --sheet:#181c25; --ink:#e5e8ef; --muted:#9097a8; --line:#2b3140; --grid:#1f2430;
-  --accent:#8ea2ff; --accent-ink:#0e1220; --hi:#f0c24e; --now:#ff6b50; --warn:#ff8a70; --warn-bg:#3a1f1a;
-  --k-class:#8ea2ff; --k-study:#4fd1bf; --k-work:#f0b04a; --k-hobby:#e08ad4; --k-life:#9ccb7d; --k-move:#a3abbd; --k-rest:#7d8496;
-  color-scheme:dark;
-}
 *{box-sizing:border-box}
-body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.6}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.6}
+[hidden]{display:none!important}
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
+button:disabled{opacity:.45;cursor:default}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+a{color:var(--accent)}
 
-.app{max-width:1200px;margin:0 auto;padding-block:20px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.app{max-width:1220px;margin:0 auto;padding-block:20px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 
 /* header */
-.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:14px 28px;padding-bottom:16px;border-bottom:1px solid var(--line)}
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:14px 28px;padding-bottom:14px}
 .brand{font-size:12px;letter-spacing:.18em;color:var(--muted);margin-bottom:2px}
-.datenav{display:flex;align-items:center;gap:6px}
-.datenav h1{margin:0 6px;font-family:var(--f-display);font-weight:700;font-size:clamp(26px,5vw,34px);line-height:1.15;display:flex;align-items:baseline;gap:8px;text-wrap:balance}
+.datenav{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.datenav h1{margin:0 6px;font-family:var(--f-display);font-weight:700;font-size:clamp(26px,5vw,34px);line-height:1.15;display:flex;align-items:baseline;gap:8px}
 .datenav .wd{font-size:.55em;border:1.5px solid currentColor;border-radius:50%;width:1.9em;height:1.9em;display:inline-grid;place-items:center;transform:translateY(-.15em)}
-.datenav .wd.sun{color:var(--now)} .datenav .wd.sat{color:var(--accent)}
-.iconbtn{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--sheet);display:grid;place-items:center;font-size:18px;line-height:1}
+.sun{color:var(--now)} .sat{color:var(--accent)}
+.iconbtn{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--sheet);display:grid;place-items:center;font-size:18px;line-height:1;padding:0}
 .iconbtn:hover{border-color:var(--accent)}
 .pill{border:1px solid var(--line);background:var(--sheet);border-radius:999px;padding:4px 12px;font-size:13px}
 .pill:hover{border-color:var(--accent);color:var(--accent)}
@@ -57,19 +55,32 @@ button{cursor:pointer}
 .stat .v{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:17px;font-weight:500}
 .stat.bad .v{color:var(--warn)}
 
+/* week strip */
+.week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;padding-block:12px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.wk{background:transparent;border:1px solid transparent;border-radius:10px;padding:6px 4px 8px;display:flex;flex-direction:column;align-items:center;gap:2px}
+.wk:hover{border-color:var(--line);background:var(--sheet)}
+.wk.sel{background:var(--sheet);border-color:var(--accent)}
+.wk .wkd{font-size:11px;color:var(--muted)}
+.wk .wdn{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:16px;font-weight:500;line-height:1.2}
+.wk.today .wdn{background:var(--accent);color:var(--accent-ink);border-radius:999px;padding:0 7px}
+.wk .wbar{width:70%;height:4px;border-radius:2px;background:var(--grid);overflow:hidden}
+.wk .wbar i{display:block;height:100%;background:var(--accent)}
+.wk .wbar i.over{background:var(--warn)}
+.wk .wmin{font-family:var(--f-mono);font-size:10.5px;color:var(--muted)}
+
 .banner{margin-top:14px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:10px 14px;border:1px dashed var(--line);border-radius:10px;background:var(--sheet);font-size:14px;color:var(--muted)}
 
 /* spread */
 .spread{display:grid;grid-template-columns:minmax(0,1fr);gap:24px;margin-top:20px}
-@media (min-width:920px){
-  .spread{grid-template-columns:370px minmax(0,1fr)}
+@media (min-width:940px){
+  .spread{grid-template-columns:380px minmax(0,1fr)}
   .left{position:sticky;top:16px;align-self:start;max-height:calc(100vh - 32px);overflow:auto;padding-right:4px}
 }
 .left,.right{display:flex;flex-direction:column;gap:16px;min-width:0}
-.h2{font-size:12px;letter-spacing:.16em;color:var(--muted);margin:0;font-weight:500}
+.h2{font-size:12px;letter-spacing:.16em;color:var(--muted);margin:0 0 8px;font-weight:500}
+.card{background:var(--sheet);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px}
 
-/* add form */
-.add{background:var(--sheet);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px}
+/* forms */
 .field{display:flex;flex-direction:column;gap:4px;min-width:0}
 .field>span{font-size:12px;color:var(--muted)}
 input[type=text],input[type=number],input[type=time],select,textarea{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;min-width:0}
@@ -87,17 +98,40 @@ input[type=text]{font-size:16px}
 .seg input:checked+span{background:var(--accent);color:var(--accent-ink)}
 .seg input:focus-visible+span{outline:2px solid var(--accent);outline-offset:-2px}
 .check{display:flex;align-items:center;gap:8px;font-size:14px}
-.check input{width:16px;height:16px;accent-color:var(--accent)}
+.check input{width:16px;height:16px;accent-color:var(--accent);flex:0 0 auto}
 .timepick{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .timepick input[type=time]{width:auto}
+.wdpick{display:flex;flex-wrap:wrap;gap:6px}
+.wdpick label{position:relative}
+.wdpick input{position:absolute;opacity:0;inset:0}
+.wdpick span{display:grid;place-items:center;width:34px;height:34px;border:1px solid var(--line);border-radius:50%;font-size:13px;cursor:pointer}
+.wdpick input:checked+span{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.wdpick input:focus-visible+span{outline:2px solid var(--accent);outline-offset:2px}
 .primary{background:var(--accent);color:var(--accent-ink);border:0;border-radius:8px;padding:9px 16px;font-weight:700}
 .primary:hover{filter:brightness(1.08)}
 .ghost{background:transparent;border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:14px}
-.ghost:hover{border-color:var(--accent);color:var(--accent)}
+.ghost:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.small{padding:3px 9px;font-size:12.5px;border-radius:6px}
 .danger{background:transparent;border:1px solid var(--warn);color:var(--warn);border-radius:8px;padding:8px 12px;font-size:14px}
 .danger.armed{background:var(--warn);color:var(--sheet)}
-.actions{display:flex;flex-wrap:wrap;gap:8px}
+.actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .err{color:var(--warn);font-size:13px;margin:0}
+.hint{font-size:12px;color:var(--muted);margin:0}
+
+/* google panel */
+.gpanel .gtop{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.gmark{width:22px;height:22px;flex:0 0 auto}
+.gname{font-weight:700;font-size:14px;min-width:0;overflow-wrap:anywhere}
+.gstatus{font-size:12.5px;color:var(--muted)}
+.gstatus.bad{color:var(--warn)}
+.gbtn{display:inline-flex;align-items:center;gap:8px;background:var(--sheet);border:1px solid var(--line);border-radius:999px;padding:7px 16px 7px 10px;font-weight:500;font-size:14px}
+.gbtn:hover{border-color:var(--accent)}
+.calist{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto}
+.calist label{display:flex;align-items:center;gap:8px;font-size:14px;min-width:0}
+.calist .cdot{width:10px;height:10px;border-radius:3px;flex:0 0 auto}
+.calist .cn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+details.sub summary{cursor:pointer;font-size:13.5px;color:var(--muted)}
+details.sub[open] summary{margin-bottom:8px}
 
 /* task list */
 .warnbox{border:1px solid var(--warn);background:var(--warn-bg);color:var(--ink);border-radius:10px;padding:10px 12px;font-size:13.5px}
@@ -116,25 +150,32 @@ input[type=text]{font-size:16px}
 .prio.p1{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .prio.p3{color:var(--muted)}
 .miss{color:var(--warn);font-weight:700}
-.dot{width:9px;height:9px;border-radius:50%;background:var(--kc);display:inline-block}
-.empty{padding:18px 16px;color:var(--muted);font-size:14px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--kc);display:inline-block;flex:0 0 auto}
+.empty{padding:16px;color:var(--muted);font-size:14px}
+.irow{display:grid;grid-template-columns:12px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 12px;border-top:1px solid var(--line)}
+.irow:first-child{border-top:0}
+.irow .acts{display:flex;gap:6px}
+.rrow{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}
+.rrow .rt{flex:1;min-width:0}
+.rrow .rm{font-size:12px;color:var(--muted);font-family:var(--f-mono)}
 
 details.settings{border:1px solid var(--line);border-radius:12px;background:var(--sheet)}
-details.settings summary{padding:12px 16px;cursor:pointer;font-size:14px}
+details.settings>summary{padding:12px 16px;cursor:pointer;font-size:14px}
 .setgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:0 16px 16px}
 .setgrid .full{grid-column:1/-1}
-.hint{font-size:12px;color:var(--muted);margin:0}
 
 /* categories */
-.k-class{--kc:var(--k-class)} .k-study{--kc:var(--k-study)} .k-work{--kc:var(--k-work)} .k-hobby{--kc:var(--k-hobby)} .k-life{--kc:var(--k-life)} .k-move{--kc:var(--k-move)} .k-rest{--kc:var(--k-rest)}
+.k-class{--kc:var(--k-class)} .k-study{--kc:var(--k-study)} .k-work{--kc:var(--k-work)} .k-hobby{--kc:var(--k-hobby)} .k-life{--kc:var(--k-life)} .k-move{--kc:var(--k-move)} .k-rest{--kc:var(--k-rest)} .k-gcal{--kc:var(--k-gcal)}
 
 /* now card */
-.nowcard{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden}
-.nowcard>div{background:var(--sheet);padding:12px 16px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.nowcard{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.nowcard>div{background:var(--sheet);padding:12px 16px;display:flex;flex-direction:column;gap:4px;min-width:0}
 .nowcard .lab{font-size:11px;letter-spacing:.16em;color:var(--muted)}
-.nowcard .big{font-size:18px;font-weight:700;overflow-wrap:anywhere}
+.nowcard .big{font-size:18px;font-weight:700;overflow-wrap:anywhere;line-height:1.35}
 .nowcard .sub{font-family:var(--f-mono);font-size:13px;color:var(--muted)}
 .nowcard .nx .lab{color:color-mix(in srgb,var(--hi) 70%,var(--ink))}
+.prog{height:5px;border-radius:3px;background:var(--grid);overflow:hidden;margin-top:2px}
+.prog i{display:block;height:100%;background:var(--now)}
 
 /* balance */
 .balance{display:flex;flex-direction:column;gap:8px}
@@ -144,14 +185,22 @@ details.settings summary{padding:12px 16px;cursor:pointer;font-size:14px}
 .legend span{display:inline-flex;align-items:center;gap:6px}
 .legend b{font-family:var(--f-mono);font-weight:500;color:var(--ink)}
 
+/* all-day strip */
+.gstrip{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.gstrip .lab{font-size:12px;color:var(--muted)}
+.gchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--sheet);border-radius:999px;padding:3px 10px;font-size:13px;max-width:100%}
+.gchip i{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
+.gchip.ign{opacity:.6;text-decoration:line-through}
+
 /* timeline */
 .tlhead{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px}
 .key{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--muted)}
 .key i{display:inline-block;width:18px;height:11px;border-radius:3px;vertical-align:-1px;margin-right:5px}
 .key .kf{background:color-mix(in srgb,var(--k-class) 24%,var(--sheet))}
 .key .ka{background:color-mix(in srgb,var(--k-class) 8%,var(--sheet));border:1px solid color-mix(in srgb,var(--k-class) 50%,transparent)}
+.key .kg{background:color-mix(in srgb,var(--k-gcal) 18%,var(--sheet));border-left:3px solid var(--k-gcal)}
 .key .kb{background:repeating-linear-gradient(45deg,var(--line) 0 3px,transparent 3px 6px);border:1px dashed var(--line)}
-.tl-wrap{background:var(--sheet);border:1px solid var(--line);border-radius:12px;max-height:min(80vh,920px);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain}
+.tl-wrap{background:var(--sheet);border:1px solid var(--line);border-radius:12px;max-height:min(80vh,940px);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain}
 .timeline{position:relative;margin:14px 0}
 .timeline::before{content:"";position:absolute;inset:0 0 0 var(--gut);background:repeating-linear-gradient(to bottom,transparent 0 calc(var(--ppm)*30 - 1px),var(--grid) calc(var(--ppm)*30 - 1px) calc(var(--ppm)*30));pointer-events:none}
 .hr{position:absolute;left:0;right:0;height:0;border-top:1px solid var(--line);pointer-events:none}
@@ -165,8 +214,9 @@ details.settings summary{padding:12px 16px;cursor:pointer;font-size:14px}
 .gap .plus{opacity:0} .gap:hover .plus,.gap:focus-visible .plus{opacity:1}
 
 .blk{position:absolute;border-radius:8px;padding:4px 8px;overflow:hidden;z-index:2;cursor:grab;touch-action:pan-y;user-select:none;-webkit-user-select:none;
-  background:color-mix(in srgb,var(--kc) 8%,var(--sheet));border:1px solid color-mix(in srgb,var(--kc) 48%,transparent);display:flex;flex-direction:column;gap:0}
+  background:color-mix(in srgb,var(--kc) 8%,var(--sheet));border:1px solid color-mix(in srgb,var(--kc) 48%,transparent);display:flex;flex-direction:column}
 .blk.fixed{background:color-mix(in srgb,var(--kc) 22%,var(--sheet));border-color:color-mix(in srgb,var(--kc) 30%,transparent)}
+.blk.gcal{cursor:pointer;background:color-mix(in srgb,var(--kc) 16%,var(--sheet));border:0;border-left:3px solid var(--kc);border-radius:4px 8px 8px 4px}
 .blk.brk{background:repeating-linear-gradient(45deg,var(--grid) 0 5px,transparent 5px 10px),var(--sheet);border:1px dashed var(--line);color:var(--muted)}
 .blk .bt{display:flex;gap:6px;align-items:baseline;min-width:0}
 .blk .tm{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:11px;color:var(--kc);white-space:nowrap}
@@ -174,6 +224,7 @@ details.settings summary{padding:12px 16px;cursor:pointer;font-size:14px}
 .blk.compact{flex-direction:row;align-items:center;gap:6px;padding-block:0}
 .blk.compact .ti{white-space:nowrap}
 .blk .pin{width:11px;height:11px;flex:0 0 auto;color:var(--kc);align-self:center}
+.blk .rt{font-size:10px;border:1px solid currentColor;border-radius:3px;padding:0 3px;color:var(--muted);align-self:center;white-space:nowrap}
 .blk.done{opacity:.5} .blk.done .ti{text-decoration:line-through}
 .blk.next{box-shadow:0 0 0 2px var(--hi)}
 .blk.clash{outline:2px solid var(--warn);outline-offset:-1px}
@@ -187,13 +238,18 @@ details.settings summary{padding:12px 16px;cursor:pointer;font-size:14px}
 .overlay{position:fixed;inset:0;background:rgba(10,14,24,.45);z-index:50;display:grid;place-items:end center;padding:16px;padding-bottom:max(16px,env(safe-area-inset-bottom,0px))}
 @media (min-width:640px){.overlay{place-items:center}}
 .sheet{background:var(--sheet);border:1px solid var(--line);border-radius:14px;width:min(520px,100%);max-height:calc(100% - 8px);overflow:auto;padding:18px;display:flex;flex-direction:column;gap:12px}
-.sheet h2{margin:0;font-family:var(--f-display);font-size:20px}
+.sheet h2{margin:0;font-family:var(--f-display);font-size:20px;overflow-wrap:anywhere}
 .sheet-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:4px}
 .sheet-actions .sp{flex:1}
-.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--sheet);padding:9px 16px;border-radius:999px;font-size:14px;z-index:60;max-width:calc(100% - 32px)}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.desc{font-size:13.5px;color:var(--muted);white-space:pre-wrap;overflow-wrap:anywhere;max-height:160px;overflow:auto;margin:0}
+.ctx{position:fixed;z-index:55;background:var(--sheet);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:4px;min-width:150px;display:flex;flex-direction:column}
+.ctx .ctit{font-size:11.5px;color:var(--muted);padding:4px 10px 2px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ctx button{background:transparent;border:0;border-radius:6px;text-align:left;padding:7px 10px;font-size:14px}
+.ctx button:hover,.ctx button:focus-visible{background:color-mix(in srgb,var(--accent) 12%,var(--sheet));outline:none}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--sheet);padding:9px 16px;border-radius:999px;font-size:14px;z-index:60;max-width:calc(100% - 32px);display:flex;gap:12px;align-items:center}
+.toast button{background:transparent;border:0;color:var(--hi);font-weight:700;padding:0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 </style>
-
 </head>
 <body>
 <div class="app">
@@ -202,13 +258,14 @@ details.settings summary{padding:12px 16px;cursor:pointer;font-size:14px}
       <div class="brand">段取り帳</div>
       <nav class="datenav" aria-label="日付">
         <button class="iconbtn" id="prevDay" aria-label="前の日">‹</button>
-        <h1 id="dateH"><span id="dMd">—</span><span class="wd" id="dWd">—</span></h1>
+        <h1><span id="dMd">—</span><span class="wd" id="dWd">—</span></h1>
         <button class="iconbtn" id="nextDay" aria-label="次の日">›</button>
         <button class="pill" id="todayBtn">今日へ</button>
       </nav>
     </div>
     <div class="stats" id="stats"></div>
   </header>
+  <nav class="week" id="week" aria-label="この週"></nav>
 
   <div class="banner" id="sampleBanner" hidden>
     <span>例として、授業のある平日の予定を入れてあります。自分の予定に置き換えて使ってください。</span>
@@ -217,8 +274,10 @@ details.settings summary{padding:12px 16px;cursor:pointer;font-size:14px}
 
   <main class="spread">
     <section class="left">
-      <form class="add" id="addForm" novalidate>
-        <h2 class="h2">やることを追加</h2>
+      <div class="card gpanel" id="gPanel"></div>
+
+      <form class="card" id="addForm" novalidate>
+        <h2 class="h2" style="margin:0">やることを追加</h2>
         <label class="field"><span>タイトル</span><input type="text" id="tTitle" placeholder="例: 講義ノートの復習" autocomplete="off"></label>
         <div class="field"><span>所要時間（分）</span>
           <div class="chips" id="durChips">
@@ -247,10 +306,11 @@ details.settings summary{padding:12px 16px;cursor:pointer;font-size:14px}
         </div>
         <label class="check"><input type="checkbox" id="tSplit"> 何回かに分けてもいい</label>
         <p class="err" id="addErr" hidden></p>
-        <div class="actions"><button class="primary" type="submit">追加する</button></div>
+        <div class="actions"><button class="primary" type="submit">この日に追加</button><button class="ghost" type="button" id="addInbox">あとでやるに入れる</button></div>
       </form>
 
       <div class="actions">
+        <button class="ghost" id="undoBtn" disabled>元に戻す</button>
         <button class="ghost" id="planBtn">組み直す</button>
         <button class="ghost" id="unpinBtn">手で動かした配置を戻す</button>
         <button class="ghost" id="copyBtn">テキストでコピー</button>
@@ -259,9 +319,27 @@ details.settings summary{padding:12px 16px;cursor:pointer;font-size:14px}
 
       <div id="missBox"></div>
       <div>
-        <h2 class="h2" style="margin-bottom:8px">この日の予定</h2>
+        <h2 class="h2">この日の予定</h2>
         <div class="tasks" id="taskList"></div>
       </div>
+      <div>
+        <h2 class="h2">あとでやる</h2>
+        <div class="tasks" id="inboxList"></div>
+      </div>
+
+      <details class="settings" id="routineBox">
+        <summary>毎日のルーティン</summary>
+        <div class="setgrid">
+          <div class="full" id="rList"></div>
+          <label class="field full"><span>名前</span><input type="text" id="rTitle" placeholder="例: 朝食・身支度" autocomplete="off"></label>
+          <label class="field"><span>所要時間（分）</span><input type="number" id="rDur" min="5" step="5" value="30"></label>
+          <label class="field"><span>分類</span><select id="rCat"></select></label>
+          <label class="field full"><span>開始時刻（空欄なら空き時間に自動で配置）</span><input type="time" id="rFix" step="300"></label>
+          <div class="field full"><span>曜日</span><div class="wdpick" id="rDays"></div></div>
+          <div class="full actions"><button type="button" class="primary" id="rAdd">ルーティンを追加</button><button type="button" class="ghost" id="rApply">この日に足りない分を入れる</button></div>
+          <p class="hint full">今日以降の日を初めて開いたとき、その曜日のルーティンが自動で入ります。</p>
+        </div>
+      </details>
 
       <details class="settings">
         <summary>組み方の設定とバックアップ</summary>
@@ -274,10 +352,10 @@ details.settings summary{padding:12px 16px;cursor:pointer;font-size:14px}
           <label class="field"><span>休憩の長さ</span><select id="sBrLen"></select></label>
           <label class="check full"><input type="checkbox" id="sFromNow"> 今日は今の時刻より後に組む</label>
           <label class="check full"><input type="checkbox" id="sAuto"> 予定を変えたら自動で組み直す</label>
-          <p class="hint full">「授業・実習」「勉強」「作業」が続いた時間を数え、間隔を超えそうなら休憩を挟みます。データはこのブラウザの中だけに保存されます。</p>
-          <div class="full actions">
-            <button type="button" class="ghost" id="bkCopy">全データをコピー</button>
-          </div>
+          <label class="check full"><input type="checkbox" id="sNotify"> 予定が始まる5分前に通知する（このページを開いている間）</label>
+          <p class="hint full">「授業・実習」「勉強」「作業」とGoogleカレンダーの予定が続いた時間を数え、間隔を超えそうなら休憩を挟みます。予定のデータはこのブラウザの中だけに保存されます。</p>
+          <label class="field full"><span>GoogleのOAuthクライアントID</span><input type="text" id="sClient" placeholder="xxxxxxxx.apps.googleusercontent.com" autocomplete="off" spellcheck="false"></label>
+          <div class="full actions"><button type="button" class="ghost" id="bkCopy">全データをコピー</button></div>
           <label class="field full"><span>バックアップから戻す（コピーした内容を貼り付け）</span><textarea id="bkText" rows="3" spellcheck="false"></textarea></label>
           <div class="full actions"><button type="button" class="danger" id="bkRestore">貼り付けた内容で上書きする</button></div>
         </div>
@@ -287,8 +365,9 @@ details.settings summary{padding:12px 16px;cursor:pointer;font-size:14px}
     <section class="right">
       <div class="nowcard" id="nowCard" hidden></div>
       <div class="balance" id="balance"></div>
+      <div class="gstrip" id="gStrip" hidden></div>
       <div class="tlhead">
-        <div class="key"><span><i class="kf"></i>時刻を決めた予定</span><span><i class="ka"></i>自動で入れた予定</span><span><i class="kb"></i>休憩</span></div>
+        <div class="key"><span><i class="kf"></i>時刻を決めた予定</span><span><i class="ka"></i>自動で入れた予定</span><span><i class="kg"></i>Googleカレンダー</span><span><i class="kb"></i>休憩</span></div>
         <span class="hint">ドラッグで移動・下端で長さ調整（スマホは長押し）</span>
       </div>
       <div class="tl-wrap" id="tlWrap"><div class="timeline" id="timeline"></div></div>
@@ -297,48 +376,165 @@ details.settings summary{padding:12px 16px;cursor:pointer;font-size:14px}
 </div>
 
 <div class="overlay" id="overlay" hidden><div class="sheet" id="sheet" role="dialog" aria-modal="true"></div></div>
+<div class="ctx" id="ctx" role="menu" hidden></div>
 <div class="toast" id="toast" hidden></div>
 
 <script>
+/* Google Cloud で作った OAuth クライアントID（ウェブアプリ）。設定欄で入れた値があればそちらが優先 */
+const GOOGLE_CLIENT_ID='';
+const SCOPES='https://www.googleapis.com/auth/calendar.readonly openid email profile';
+
 const $=s=>document.querySelector(s);
 const CATS={class:{label:'授業・実習',work:true},study:{label:'勉強',work:true},work:{label:'作業',work:true},hobby:{label:'趣味',work:false},life:{label:'生活',work:false},move:{label:'移動',work:false}};
 const PRIO={1:'高',2:'中',3:'低'};
-const KEY='dandori:v1';
-const DEF={dayStart:420,dayEnd:1440,buffer:5,snap:5,breakEvery:90,breakLen:10,fromNow:true,autoReplan:true};
-const MIN_CHUNK=30, PPM=1.4;
+const KEY='dandori:v1',TKEY='dandori:gtoken';
+const DEF={dayStart:420,dayEnd:1440,buffer:5,snap:5,breakEvery:90,breakLen:10,fromNow:true,autoReplan:true,notify:false};
+const MIN_CHUNK=30,PPM=1.4;
 const PIN='<svg class="pin" viewBox="0 0 16 16" aria-label="手で配置"><path fill="currentColor" d="M10.6 1.3 14.7 5.4l-1.2 1.2-.9-.3-2.6 2.6.2 2.8-1.2 1.2-2.6-2.6-3.3 3.3-.9-.9L5.5 9.4 2.9 6.8l1.2-1.2 2.8.2 2.6-2.6-.3-.9z"/></svg>';
+const GLOGO='<svg class="gmark" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.9 6.1C12.5 13.6 17.8 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.3-4.6 7l7.5 5.8c4.4-4 6.8-10 6.8-17.3z"/><path fill="#FBBC05" d="M10.5 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.9 2.3-8.4 2.3-6.2 0-11.5-4.1-13.4-9.8l-7.9 6.1C6.6 42.6 14.6 48 24 48z"/></svg>';
 
-let DB=null;
-function load(){try{const s=localStorage.getItem(KEY);if(s){const o=JSON.parse(s);if(o&&o.days)return o;}}catch(e){}return null}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(DB))}catch(e){}}
 const pad=n=>String(n).padStart(2,'0');
 const fmt=m=>{m=Math.round(m);return pad(Math.floor(m/60))+':'+pad(((m%60)+60)%60)};
 const durL=m=>{m=Math.round(m);if(m<60)return m+'分';const h=Math.floor(m/60),r=m%60;return h+'時間'+(r?r+'分':'')};
-const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid=()=>Math.random().toString(36).slice(2,10);
 const dStr=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
 const todayStr=()=>dStr(new Date());
 const shift=(s,n)=>{const[y,m,d]=s.split('-').map(Number);return dStr(new Date(y,m-1,d+n))};
 const WD='日月火水木金土';
-const dInfo=s=>{const[y,m,d]=s.split('-').map(Number);const w=new Date(y,m-1,d).getDay();return{md:`${m}月${d}日`,wd:WD[w],w}};
+const dInfo=s=>{const[y,m,d]=s.split('-').map(Number);const w=new Date(y,m-1,d).getDay();return{md:`${m}月${d}日`,wd:WD[w],w,d}};
 const nowMin=()=>{const n=new Date();return n.getHours()*60+n.getMinutes()};
 const snapUp=m=>Math.ceil(m/5)*5;
 function parseT(v){if(!v)return null;const[h,m]=v.split(':').map(Number);let t=h*60+(m||0);if(S().dayEnd>1440&&t<S().dayStart-60)t+=1440;return t}
 
+/* ---------- データ ---------- */
+let DB=null;
+function normalize(o){
+  o=o||{};o.v=2;o.settings={...DEF,...(o.settings||{})};o.days=o.days||{};o.routines=o.routines||[];o.inbox=o.inbox||[];
+  o.gcal={clientId:'',calendars:[],selected:{},ignore:{},email:null,name:null,...(o.gcal||{})};
+  return o;
+}
+function load(){try{const s=localStorage.getItem(KEY);if(s){const o=JSON.parse(s);if(o&&o.days)return normalize(o)}}catch(e){}return null}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(DB))}catch(e){}}
 let curDate=todayStr();
 const S=()=>DB.settings;
 function day(){return DB.days[curDate]||(DB.days[curDate]={tasks:[],places:[]})}
-const taskOf=(d,id)=>d.tasks.find(t=>t.id===id);
+const taskOf=(d,id)=>id?d.tasks.find(t=>t.id===id):undefined;
+
+/* ---------- 元に戻す ---------- */
+const undoStack=[];
+function snap(){undoStack.push(JSON.stringify(DB));if(undoStack.length>40)undoStack.shift();$('#undoBtn').disabled=false}
+function undo(){const s=undoStack.pop();if(!s)return;DB=normalize(JSON.parse(s));save();$('#undoBtn').disabled=!undoStack.length;renderSettings();render();toast('元に戻しました')}
+function mutate(fn,opt={}){snap();fn(day());if(opt.replan!==false&&S().autoReplan)autoPlan(day());save();render();if(opt.msg)toast(opt.msg,true)}
+
+/* ---------- Googleカレンダー ---------- */
+const GC={token:null,exp:0,cache:{},status:'',bad:false,loading:false,client:null};
+try{const t=JSON.parse(localStorage.getItem(TKEY)||'null');if(t&&t.exp>Date.now()){GC.token=t.token;GC.exp=t.exp}}catch(e){}
+const clientId=()=>(DB.gcal.clientId||GOOGLE_CLIENT_ID||'').trim();
+const gLive=()=>!!GC.token&&GC.exp>Date.now();
+function gDrop(){GC.token=null;GC.exp=0;try{localStorage.removeItem(TKEY)}catch(e){}}
+function gInitClient(){
+  if(GC.client)return true;
+  if(!(window.google&&google.accounts&&google.accounts.oauth2)||!clientId())return false;
+  GC.client=google.accounts.oauth2.initTokenClient({client_id:clientId(),scope:SCOPES,callback:onToken,
+    error_callback:e=>{GC.status=e&&e.type==='popup_closed'?'ログインの画面が閉じられました。':'ログインを開始できませんでした。ポップアップがブロックされていないか確認してください。';GC.bad=true;renderGoogle()}});
+  return true;
+}
+function gLogin(){
+  if(!clientId()){toast('先に「組み方の設定」でクライアントIDを入れてください');return}
+  if(!gInitClient()){toast('Googleの読み込みを待っています。数秒後にもう一度押してください');return}
+  const o={prompt:DB.gcal.email?'':'consent'};if(DB.gcal.email)o.login_hint=DB.gcal.email;
+  GC.client.requestAccessToken(o);
+}
+async function onToken(r){
+  if(!r||r.error){GC.status='ログインできませんでした（'+esc(r&&(r.error_description||r.error)||'不明なエラー')+'）。';GC.bad=true;renderGoogle();return}
+  if(!google.accounts.oauth2.hasGrantedAnyScope(r,'https://www.googleapis.com/auth/calendar.readonly')){GC.status='カレンダーの閲覧が許可されませんでした。もう一度ログインし、カレンダーへのアクセスにチェックを入れてください。';GC.bad=true;renderGoogle();return}
+  GC.token=r.access_token;GC.exp=Date.now()+(+r.expires_in||3600)*1000-60000;
+  try{localStorage.setItem(TKEY,JSON.stringify({token:GC.token,exp:GC.exp}))}catch(e){}
+  GC.bad=false;GC.status='';
+  try{
+    const u=await gApi('https://www.googleapis.com/oauth2/v3/userinfo');
+    DB.gcal.email=u.email||null;DB.gcal.name=u.name||u.email||'Googleアカウント';
+    await gLoadCalendars();
+    GC.cache={};await gSync(true);
+  }catch(e){gErr(e)}
+}
+async function gLoadCalendars(){
+  const cl=await gApi('https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=reader&maxResults=250');
+  const items=cl.items||[];
+  DB.gcal.calendars=items.map(c=>({id:c.id,summary:c.summaryOverride||c.summary||c.id,color:c.backgroundColor||'#4a6cf7',primary:!!c.primary}));
+  for(const c of items)if(DB.gcal.selected[c.id]===undefined)DB.gcal.selected[c.id]=!!(c.primary||c.selected);
+  save();
+}
+async function gApi(url){
+  const r=await fetch(url,{headers:{Authorization:'Bearer '+GC.token}});
+  if(r.status===401){gDrop();throw new Error('auth')}
+  if(!r.ok){let m='';try{m=(await r.json()).error.message}catch(e){}throw new Error('http '+r.status+(m?' '+m:''))}
+  return r.json();
+}
+function gErr(e){
+  GC.loading=false;GC.bad=true;
+  GC.status=e.message==='auth'?'接続の期限が切れました。「再接続」を押してください。':
+    /403/.test(e.message)?'Googleカレンダーを読み込めませんでした。Google CloudでCalendar APIが有効か確認してください。':'Googleカレンダーを読み込めませんでした（'+esc(e.message)+'）。';
+  renderGoogle();
+}
+function gLogout(){
+  if(GC.token&&window.google&&google.accounts&&google.accounts.oauth2){try{google.accounts.oauth2.revoke(GC.token,()=>{})}catch(e){}}
+  gDrop();GC.cache={};GC.status='';GC.bad=false;DB.gcal.email=null;DB.gcal.name=null;save();
+  if(S().autoReplan)autoPlan(day());save();render();toast('Googleからログアウトしました');
+}
+function evNorm(ev,c,t0){
+  const id=c.id+'|'+ev.id,base={id,calId:c.id,calName:c.summary,color:ev.colorId?c.color:c.color,title:ev.summary||'（タイトルなし）',location:ev.location||'',desc:(ev.description||'').replace(/<[^>]+>/g,' ').slice(0,400),link:ev.htmlLink||''};
+  if(ev.start&&ev.start.date)return{...base,allDay:true};
+  const s=(new Date(ev.start.dateTime)-t0)/60000,e=(new Date(ev.end.dateTime)-t0)/60000;
+  const st=Math.max(0,s);return{...base,allDay:false,start:st,dur:Math.max(0,e-st),rawStart:s,rawEnd:e};
+}
+async function gFetchDay(date,force){
+  if(!gLive())return false;
+  const c=GC.cache[date];if(c&&!force&&Date.now()-c.at<5*60000)return false;
+  const[y,m,d]=date.split('-').map(Number);
+  const t0=new Date(y,m-1,d,0,0),t1=new Date(y,m-1,d,0,Math.max(S().dayEnd,1440));
+  const cals=DB.gcal.calendars.filter(x=>DB.gcal.selected[x.id]);
+  const all=[];
+  await Promise.all(cals.map(async cal=>{
+    const q=new URLSearchParams({timeMin:t0.toISOString(),timeMax:t1.toISOString(),singleEvents:'true',orderBy:'startTime',maxResults:'250'});
+    const r=await gApi(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events?${q}`);
+    for(const ev of r.items||[]){
+      if(ev.status==='cancelled')continue;
+      const me=(ev.attendees||[]).find(a=>a.self);if(me&&me.responseStatus==='declined')continue;
+      all.push(evNorm(ev,cal,t0));
+    }
+  }));
+  GC.cache[date]={at:Date.now(),events:all};
+  return true;
+}
+async function gSync(force){
+  if(!gLive()){renderGoogle();return}
+  GC.loading=true;renderGoogle();
+  const date=curDate;
+  try{
+    await gFetchDay(date,force);GC.loading=false;GC.bad=false;
+    if(date===curDate){if(S().autoReplan)autoPlan(day());save();render()}
+  }catch(e){gErr(e)}
+}
+function gEvents(date){const c=GC.cache[date];if(!c)return[];return c.events.filter(e=>DB.gcal.selected[e.calId])}
+function gIgnored(date){return new Set(DB.gcal.ignore[date]||[])}
+function gBlocks(){
+  const ign=gIgnored(curDate);
+  return gEvents(curDate).filter(e=>!e.allDay&&e.dur>0&&!ign.has(e.id)).map(e=>({id:'g_'+e.id,gid:e.id,taskId:null,gcal:e,start:e.start,dur:e.dur,fixed:true,pinned:true}));
+}
+
+/* ---------- ブロックと自動配置 ---------- */
 function blocks(d){
   const out=[];
   for(const t of d.tasks)if(t.fixed!=null)out.push({id:'f_'+t.id,taskId:t.id,start:t.fixed,dur:t.dur,fixed:true,pinned:true});
   for(const p of d.places)out.push(p);
+  if(d===DB.days[curDate])out.push(...gBlocks());
   return out.sort((a,b)=>a.start-b.start||b.dur-a.dur);
 }
-function catOf(d,b){if(b.taskId==='__break')return'rest';const t=taskOf(d,b.taskId);return t?t.cat:'move'}
-const isWork=(d,b)=>b.taskId!=='__break'&&!!(CATS[catOf(d,b)]||{}).work;
-
-/* ---------- 自動配置 ---------- */
+function catOf(d,b){if(b.gcal)return'gcal';if(b.taskId==='__break')return'rest';const t=taskOf(d,b.taskId);return t?t.cat:'move'}
+const isWork=(d,b)=>b.gcal?true:b.taskId!=='__break'&&!!(CATS[catOf(d,b)]||{}).work;
+const nameOf=(d,b)=>b.gcal?b.gcal.title:b.taskId==='__break'?'休憩':((taskOf(d,b.taskId)||{}).title||'');
 function runBefore(d,occ,s){
   let t=s,run=0,g=0;
   while(g++<50){
@@ -356,7 +552,7 @@ function freeGaps(occ){
   return gaps;
 }
 function placeTask(d,t,rem,occ,minStart){
-  const work=!!(CATS[t.cat]||{}).work;const be=S().breakEvery>0?S().breakEvery:Infinity;let guard=0;
+  const work=!!(CATS[t.cat]||{}).work,be=S().breakEvery>0?S().breakEvery:Infinity;let guard=0;
   while(rem>0&&guard++<40){
     const gaps=freeGaps(occ).map(([a,b])=>[Math.max(a,minStart),b]).filter(([a,b])=>b-a>0);
     let ok=false;
@@ -389,16 +585,30 @@ function autoPlan(d){
   }
 }
 const remOf=(d,t)=>(t.fixed!=null||t.done)?0:Math.max(0,t.dur-d.places.filter(p=>p.taskId===t.id).reduce((s,p)=>s+p.dur,0));
-function changed(d,replan=true){if(replan&&S().autoReplan)autoPlan(d);save();render()}
+
+/* ---------- ルーティン ---------- */
+function applyRoutines(d,date){
+  const w=dInfo(date).w;let n=0;
+  for(const r of DB.routines){
+    if(!r.days.includes(w)||d.tasks.some(t=>t.routineId===r.id))continue;
+    d.tasks.push({id:uid(),title:r.title,cat:r.cat,dur:r.dur,prio:r.prio||2,fixed:r.fixed,split:!!r.split,done:false,routineId:r.id});n++;
+  }
+  return n;
+}
+function ensureDay(){
+  const d=day();
+  if(!d.routined&&curDate>=todayStr()){d.routined=true;if(applyRoutines(d,curDate))autoPlan(d);save()}
+  return d;
+}
 
 /* ---------- 描画 ---------- */
 let VS=0,firstPaint=true;
 function render(){
-  const d=day(),info=dInfo(curDate);
+  const d=ensureDay(),info=dInfo(curDate);
   $('#dMd').textContent=info.md;const wd=$('#dWd');wd.textContent=info.wd;wd.className='wd'+(info.w===0?' sun':info.w===6?' sat':'');
   $('#todayBtn').hidden=curDate===todayStr();
   $('#sampleBanner').hidden=!d.tasks.some(t=>t.sample);
-  renderStats(d);renderTasks(d);renderCarry(d);renderNow(d);renderBalance(d);renderTimeline(d);
+  renderStats(d);renderWeek();renderGoogle();renderTasks(d);renderInbox();renderRoutines();renderCarry(d);renderNow(d);renderBalance(d);renderStrip();renderTimeline(d);
 }
 function covered(bl,a,b){
   const iv=bl.map(x=>[Math.max(a,x.start),Math.min(b,x.start+x.dur)]).filter(([s,e])=>e>s).sort((p,q)=>p[0]-q[0]);
@@ -407,46 +617,90 @@ function covered(bl,a,b){
   if(ce>cs)tot+=ce-cs;return tot;
 }
 function renderStats(d){
-  const bl=blocks(d),work=bl.filter(b=>b.taskId!=='__break');
-  const planned=work.reduce((s,b)=>s+b.dur,0);
+  const bl=blocks(d),planned=bl.filter(b=>b.taskId!=='__break').reduce((s,b)=>s+b.dur,0);
   const free=Math.max(0,(S().dayEnd-S().dayStart)-covered(bl,S().dayStart,S().dayEnd));
-  const miss=d.tasks.reduce((s,t)=>s+remOf(d,t),0);
-  const done=d.tasks.filter(t=>t.done).length;
+  const miss=d.tasks.reduce((s,t)=>s+remOf(d,t),0),done=d.tasks.filter(t=>t.done).length;
   $('#stats').innerHTML=`
    <div class="stat"><span class="k">予定</span><span class="v">${durL(planned)}</span></div>
    <div class="stat"><span class="k">空き</span><span class="v">${durL(free)}</span></div>
    <div class="stat${miss?' bad':''}"><span class="k">入りきらない</span><span class="v">${miss?durL(miss):'なし'}</span></div>
    <div class="stat"><span class="k">完了</span><span class="v">${done}/${d.tasks.length}</span></div>`;
 }
+function renderWeek(){
+  const w=dInfo(curDate).w,mon=shift(curDate,-((w+6)%7)),tdy=todayStr(),cap=S().dayEnd-S().dayStart;
+  let h='';
+  for(let i=0;i<7;i++){
+    const ds=shift(mon,i),inf=dInfo(ds),dd=DB.days[ds];
+    let mins=0,miss=0;
+    if(dd){for(const t of dd.tasks){if(t.fixed!=null)mins+=t.dur;miss+=remOf(dd,t)}for(const p of dd.places)if(p.taskId!=='__break')mins+=p.dur}
+    if(ds===curDate)mins+=gBlocks().reduce((s,b)=>s+b.dur,0);
+    const pct=Math.min(100,mins/cap*100);
+    h+=`<button class="wk${ds===curDate?' sel':''}${ds===tdy?' today':''}" data-date="${ds}" aria-label="${inf.md}（${inf.wd}）予定${durL(mins)}">
+      <span class="wkd ${inf.w===0?'sun':inf.w===6?'sat':''}">${inf.wd}</span><span class="wdn">${inf.d}</span>
+      <span class="wbar"><i class="${miss?'over':''}" style="width:${pct}%"></i></span><span class="wmin">${mins?(mins/60).toFixed(1)+'h':'—'}</span></button>`;
+  }
+  $('#week').innerHTML=h;
+}
+function renderGoogle(){
+  const p=$('#gPanel');
+  if(!clientId()){
+    p.innerHTML=`<div class="gtop">${GLOGO}<span class="gname">Googleカレンダー連携</span></div>
+     <p class="hint">Googleでログインしてカレンダーの予定を取り込むには、Google Cloudで作ったOAuthクライアントIDが必要です。手順はリポジトリのREADMEにあります。</p>
+     <div class="row"><input type="text" id="gClientIn" placeholder="xxxxxxxx.apps.googleusercontent.com" spellcheck="false" autocomplete="off" aria-label="クライアントID"><button class="primary" id="gClientSave" style="flex:0 0 auto">保存</button></div>`;
+    return;
+  }
+  const st=GC.status?`<p class="gstatus${GC.bad?' bad':''}">${GC.status}</p>`:'';
+  if(!gLive()){
+    p.innerHTML=`<div class="gtop">${GLOGO}<span class="gname">Googleカレンダー</span></div>
+     ${DB.gcal.email?`<p class="hint">${esc(DB.gcal.email)} の接続が切れています（安全のため1時間ごとに切れます）。</p>`:'<p class="hint">ログインすると、カレンダーの予定が時間軸に入り、それを避けて段取りが組まれます。</p>'}
+     <div class="actions"><button class="gbtn" id="gLogin">${GLOGO}${DB.gcal.email?'再接続':'Googleでログイン'}</button>${DB.gcal.email?'<button class="ghost small" id="gLogout">ログアウト</button>':''}</div>${st}`;
+    return;
+  }
+  const c=GC.cache[curDate],evs=gEvents(curDate);
+  const info=GC.loading?'読み込み中…':c?`この日の予定 ${evs.length}件 · ${new Date(c.at).getHours()}:${pad(new Date(c.at).getMinutes())} 更新`:'';
+  p.innerHTML=`<div class="gtop">${GLOGO}<div style="min-width:0;flex:1"><div class="gname">${esc(DB.gcal.name||'Googleアカウント')}</div><div class="gstatus">${esc(DB.gcal.email||'')}</div></div>
+     <button class="ghost small" id="gReload"${GC.loading?' disabled':''}>再読み込み</button><button class="ghost small" id="gLogout">ログアウト</button></div>
+   <p class="gstatus">${info}</p>${st}
+   <details class="sub"><summary>表示するカレンダー（${DB.gcal.calendars.filter(x=>DB.gcal.selected[x.id]).length}/${DB.gcal.calendars.length}）</summary>
+    <div class="calist">${DB.gcal.calendars.map(x=>`<label><input type="checkbox" data-cal="${esc(x.id)}"${DB.gcal.selected[x.id]?' checked':''}><i class="cdot" style="background:${esc(x.color)}"></i><span class="cn">${esc(x.summary)}</span></label>`).join('')}</div></details>`;
+}
 function firstStart(d,t){if(t.fixed!=null)return t.fixed;const ps=d.places.filter(p=>p.taskId===t.id);return ps.length?Math.min(...ps.map(p=>p.start)):Infinity}
 function renderTasks(d){
   const list=[...d.tasks].sort((a,b)=>firstStart(d,a)-firstStart(d,b)||a.prio-b.prio);
   const missing=d.tasks.filter(t=>remOf(d,t)>0);
-  $('#missBox').innerHTML=missing.length?`<div class="warnbox"><b>入りきらない予定が${missing.length}件（${durL(missing.reduce((s,t)=>s+remOf(d,t),0))}）あります。</b> 時間を短くする、優先度を上げる、「分けてもいい」にする、他の予定を減らす、のどれかで入ります。</div>`:'';
+  $('#missBox').innerHTML=missing.length?`<div class="warnbox"><b>入りきらない予定が${missing.length}件（${durL(missing.reduce((s,t)=>s+remOf(d,t),0))}）あります。</b> 時間を短くする、優先度を上げる、「分けてもいい」にする、「あとでやる」へ移す、のどれかで片づきます。</div>`:'';
   if(!list.length){$('#taskList').innerHTML=`<div class="empty">まだ予定がありません。授業やバイトなど時刻の決まった予定は「開始時刻を決める」をオンにして、それ以外は所要時間だけ入れてください。空き時間に自動で並べます。</div>`;return}
   $('#taskList').innerHTML=list.map(t=>{
     const ps=d.places.filter(p=>p.taskId===t.id).sort((a,b)=>a.start-b.start);
-    let when;
-    if(t.fixed!=null)when=`<span class="t">${fmt(t.fixed)}–${fmt(t.fixed+t.dur)}</span>`;
-    else if(ps.length)when=`<span class="t">${ps.map(p=>fmt(p.start)).join(' / ')} 〜</span>`;
-    else when='';
+    const when=t.fixed!=null?`<span class="t">${fmt(t.fixed)}–${fmt(t.fixed+t.dur)}</span>`:ps.length?`<span class="t">${ps.map(p=>fmt(p.start)).join(' / ')} 〜</span>`:'';
     const r=remOf(d,t);
     return `<div class="trow k-${t.cat}${t.done?' done':''}" data-id="${t.id}">
       <button class="chk" data-act="done" aria-label="${t.done?'未完了に戻す':'完了にする'}" aria-pressed="${t.done}">✓</button>
       <div style="min-width:0"><div class="ttitle">${esc(t.title)}</div>
-        <div class="tmeta">${when}<span>${durL(t.dur)}</span>${t.fixed==null?`<span class="prio p${t.prio}">${PRIO[t.prio]}</span>`:''}${t.split?'<span>分割可</span>':''}${r?`<span class="miss">未配置 ${durL(r)}</span>`:''}</div></div>
+        <div class="tmeta">${when}<span>${durL(t.dur)}</span>${t.fixed==null?`<span class="prio p${t.prio}">${PRIO[t.prio]}</span>`:''}${t.split?'<span>分割可</span>':''}${t.routineId?'<span>ルーティン</span>':''}${r?`<span class="miss">未配置 ${durL(r)}</span>`:''}</div></div>
       <span class="dot" aria-hidden="true"></span></div>`}).join('');
 }
+function renderInbox(){
+  const L=[...DB.inbox].sort((a,b)=>a.prio-b.prio);
+  $('#inboxList').innerHTML=L.length?L.map(t=>`<div class="irow k-${t.cat}" data-id="${t.id}"><span class="dot"></span>
+     <div style="min-width:0"><div class="ttitle">${esc(t.title)}</div><div class="tmeta"><span>${durL(t.dur)}</span><span class="prio p${t.prio}">${PRIO[t.prio]}</span>${t.split?'<span>分割可</span>':''}</div></div>
+     <div class="acts"><button class="ghost small" data-act="take">この日へ</button><button class="ghost small" data-act="del" aria-label="「${esc(t.title)}」を消す">消す</button></div></div>`).join('')
+    :`<div class="empty">日付を決めずに置いておくやることです。追加フォームの「あとでやるに入れる」か、予定の編集画面の「あとでやるへ移す」で入ります。</div>`;
+}
+function renderRoutines(){
+  const days=w=>[1,2,3,4,5,6,0].filter(x=>w.includes(x)).map(x=>WD[x]).join('');
+  $('#rList').innerHTML=DB.routines.length?DB.routines.map(r=>`<div class="rrow k-${r.cat}"><span class="dot"></span><span class="rt">${esc(r.title)}</span><span class="rm">${r.fixed!=null?fmt(r.fixed)+' · ':''}${r.dur}分 · ${days(r.days)}</span><button class="ghost small" data-rdel="${r.id}">消す</button></div>`).join('')
+    :'<p class="hint">まだありません。朝の支度や食事、毎週の授業など、決まって入る予定を登録しておくと便利です。</p>';
+}
 function weeklySource(){
-  for(let k=7;k<=28;k+=7){const s=shift(curDate,-k),dd=DB.days[s];if(dd&&dd.tasks.some(t=>t.fixed!=null&&!t.sample))return{s,dd}}
+  for(let k=7;k<=28;k+=7){const s=shift(curDate,-k),dd=DB.days[s];if(dd&&dd.tasks.some(t=>t.fixed!=null&&!t.sample&&!t.routineId))return{s,dd}}
   return null;
 }
 function renderCarry(d){
-  const out=[];
-  const prev=DB.days[shift(curDate,-1)];
-  if(prev){const left=prev.tasks.filter(t=>!t.done&&t.fixed==null&&!t.sample&&!d.tasks.some(x=>x.from===t.id));
+  const out=[],prev=DB.days[shift(curDate,-1)];
+  if(prev){const left=prev.tasks.filter(t=>!t.done&&t.fixed==null&&!t.sample&&!t.routineId&&!d.tasks.some(x=>x.from===t.id));
     if(left.length)out.push(`<button class="ghost" id="carryBtn">前日の残り${left.length}件を持ち越す</button>`)}
-  if(!d.tasks.some(t=>t.fixed!=null)){const w=weeklySource();if(w){const n=w.dd.tasks.filter(t=>t.fixed!=null).length;
+  if(!d.tasks.some(t=>t.fixed!=null&&!t.routineId)){const w=weeklySource();if(w){const n=w.dd.tasks.filter(t=>t.fixed!=null&&!t.routineId).length;
     out.push(`<button class="ghost" id="weekBtn" data-src="${w.s}">${dInfo(w.s).md}（${dInfo(w.s).wd}）の時刻つき予定${n}件を写す</button>`)}}
   $('#carryArea').innerHTML=out.join('');$('#carryArea').hidden=!out.length;
 }
@@ -454,21 +708,30 @@ function renderNow(d){
   const card=$('#nowCard');
   if(curDate!==todayStr()){card.hidden=true;return}
   const n=nowMin(),bl=blocks(d).filter(b=>b.taskId!=='__break');
-  const cur=bl.find(b=>b.start<=n&&n<b.start+b.dur);
+  const cur=bl.find(b=>b.start<=n&&n<b.start+b.dur&&!(taskOf(d,b.taskId)||{}).done);
   const nx=bl.find(b=>b.start>n&&!(taskOf(d,b.taskId)||{}).done);
-  const name=b=>esc((taskOf(d,b.taskId)||{}).title||'');
   card.hidden=false;
-  card.innerHTML=`<div><span class="lab">いま</span>${cur?`<span class="big">${name(cur)}</span><span class="sub">〜${fmt(cur.start+cur.dur)}（あと${durL(cur.start+cur.dur-n)}）</span>`:`<span class="big">空き時間</span><span class="sub">${nx?`次まで${durL(nx.start-n)}`:''}</span>`}</div>
-   <div class="nx"><span class="lab">つぎ</span>${nx?`<span class="big">${name(nx)}</span><span class="sub">${fmt(nx.start)}から（${durL(nx.start-n)}後）</span>`:`<span class="big">今日の予定はここまで</span><span class="sub">&nbsp;</span>`}</div>`;
+  const curBtns=cur&&!cur.gcal?`<div class="actions" style="margin-top:4px"><button class="ghost small" data-act="ndone" data-tid="${cur.taskId}">完了</button><button class="ghost small" data-act="extend" data-bid="${cur.id}">15分のばす</button></div>`:'';
+  card.innerHTML=`<div><span class="lab">いま</span>${cur?`<span class="big">${esc(nameOf(d,cur))}</span><span class="sub">〜${fmt(cur.start+cur.dur)}（あと${durL(cur.start+cur.dur-n)}）</span><div class="prog"><i style="width:${(n-cur.start)/cur.dur*100}%"></i></div>${curBtns}`:`<span class="big">空き時間</span><span class="sub">${nx?`次まで${durL(nx.start-n)}`:''}</span>`}</div>
+   <div class="nx"><span class="lab">つぎ</span>${nx?`<span class="big">${esc(nameOf(d,nx))}</span><span class="sub">${fmt(nx.start)}から（${durL(nx.start-n)}後）</span>`:`<span class="big">今日の予定はここまで</span>`}</div>`;
 }
 function renderBalance(d){
   const tot={};let sum=0;
   for(const b of blocks(d)){const c=catOf(d,b);tot[c]=(tot[c]||0)+b.dur;sum+=b.dur}
   if(!sum){$('#balance').innerHTML='';return}
-  const order=['class','study','work','hobby','life','move','rest'].filter(c=>tot[c]);
-  const lab=c=>c==='rest'?'休憩':CATS[c].label;
+  const order=['gcal','class','study','work','hobby','life','move','rest'].filter(c=>tot[c]);
+  const lab=c=>c==='rest'?'休憩':c==='gcal'?'Googleカレンダー':CATS[c].label;
   $('#balance').innerHTML=`<div class="bar" role="img" aria-label="分類ごとの時間">${order.map(c=>`<span class="k-${c}" style="width:${tot[c]/sum*100}%"></span>`).join('')}</div>
    <div class="legend">${order.map(c=>`<span class="k-${c}"><i class="dot"></i>${lab(c)} <b>${durL(tot[c])}</b></span>`).join('')}</div>`;
+}
+function renderStrip(){
+  const ev=gEvents(curDate),ign=gIgnored(curDate);
+  const all=ev.filter(e=>e.allDay),ig=ev.filter(e=>!e.allDay&&ign.has(e.id));
+  const el=$('#gStrip');
+  if(!all.length&&!ig.length){el.hidden=true;return}
+  el.hidden=false;
+  el.innerHTML=(all.length?`<span class="lab">終日</span>${all.map(e=>`<button class="gchip" data-gid="${esc(e.id)}"><i style="background:${esc(e.color)}"></i>${esc(e.title)}</button>`).join('')}`:'')+
+    (ig.length?`<span class="lab">配置で無視中</span>${ig.map(e=>`<button class="gchip ign" data-gid="${esc(e.id)}"><i style="background:${esc(e.color)}"></i>${esc(e.title)}</button>`).join('')}`:'');
 }
 function layoutCols(bl){
   const items=bl.map(b=>({b,s:b.start,e:b.start+b.dur,col:0,n:1}));
@@ -491,48 +754,48 @@ function renderTimeline(d){
   let h='';
   for(let m=vS;m<=vE;m+=60)h+=`<div class="hr" style="top:${y(m)}px"><span>${fmt(m)}</span></div>`;
   if(isToday&&n>vS)h+=`<div class="past" style="height:${Math.min(y(n),(vE-vS)*PPM)}px"></div>`;
-  // 空き
   const iv=bl.map(b=>[b.start,b.start+b.dur]).sort((a,b)=>a[0]-b[0]);
   let cur=Math.max(S().dayStart,isToday&&S().fromNow?snapUp(n):-Infinity);
   const gaps=[];
   for(const[s,e]of iv){if(s-cur>=15)gaps.push([cur,s]);cur=Math.max(cur,e)}
   if(S().dayEnd-cur>=15)gaps.push([cur,S().dayEnd]);
   for(const[s,e]of gaps)h+=`<button class="gap" data-start="${s}" style="top:${y(s)+2}px;height:${(e-s)*PPM-4}px">空き ${durL(e-s)}<span class="plus">＋ ここに予定を入れる</span></button>`;
-  // ブロック
   const parts={};
   for(const b of bl){if(b.fixed||b.taskId==='__break')continue;(parts[b.taskId]=parts[b.taskId]||[]).push(b)}
   const nextB=isToday?bl.find(b=>b.taskId!=='__break'&&b.start>n&&!(taskOf(d,b.taskId)||{}).done):null;
   for(const it of layoutCols(bl)){
     const b=it.b,brk=b.taskId==='__break',t=taskOf(d,b.taskId),cat=catOf(d,b);
-    let title=brk?'休憩':esc(t?t.title:'');
+    let title=esc(nameOf(d,b));
     const ps=parts[b.taskId];if(ps&&ps.length>1)title+=` <span class="tm">${ps.indexOf(b)+1}/${ps.length}</span>`;
     const hh=b.dur*PPM,compact=hh<40;
-    const cls=['blk','k-'+cat,b.fixed?'fixed':'',brk?'brk':'',t&&t.done?'done':'',compact?'compact':'',it.n>1?'clash':'',nextB===b?'next':''].join(' ');
-    const w=`(100% - var(--gut) - 10px)`;
-    h+=`<div class="${cls}" data-id="${b.id}" tabindex="0" role="button" aria-label="${fmt(b.start)}から${durL(b.dur)} ${brk?'休憩':esc(t?t.title:'')}"
-      style="top:${y(b.start)+1}px;height:${Math.max(hh-2,12)}px;left:calc(var(--gut) + 4px + ${w} * ${it.col/it.n});width:calc(${w} / ${it.n} - 3px)">
-      <div class="bt"><span class="tm">${fmt(b.start)}${compact?'':'–'+fmt(b.start+b.dur)}</span>${compact?`<span class="ti">${title}</span>`:''}${!b.fixed&&b.pinned?PIN:''}</div>
-      ${compact?'':`<div class="ti">${title}</div>`}<div class="grip" aria-hidden="true"></div></div>`;
+    const cls=['blk','k-'+cat,b.fixed?'fixed':'',b.gcal?'gcal':'',brk?'brk':'',t&&t.done?'done':'',compact?'compact':'',it.n>1?'clash':'',nextB===b?'next':''].join(' ');
+    const w='(100% - var(--gut) - 10px)';
+    const kc=b.gcal?`--kc:${esc(b.gcal.color)};`:'';
+    const tag=b.gcal?'':t&&t.routineId&&!compact?'<span class="rt">ルーティン</span>':'';
+    h+=`<div class="${cls}" data-id="${esc(b.id)}" tabindex="0" role="button" aria-label="${fmt(b.start)}から${durL(b.dur)} ${esc(nameOf(d,b))}"
+      style="${kc}top:${y(b.start)+1}px;height:${Math.max(hh-2,12)}px;left:calc(var(--gut) + 4px + ${w} * ${it.col/it.n});width:calc(${w} / ${it.n} - 3px)">
+      <div class="bt"><span class="tm">${fmt(b.start)}${compact?'':'–'+fmt(b.start+b.dur)}</span>${compact?`<span class="ti">${title}</span>`:''}${!b.fixed&&b.pinned?PIN:''}${tag}</div>
+      ${compact?'':`<div class="ti">${title}</div>`}${b.gcal?'':'<div class="grip" aria-hidden="true"></div>'}</div>`;
   }
   if(isToday&&n>=vS&&n<=vE)h+=`<div class="nowline" style="top:${y(n)}px"><span>${fmt(n)}</span></div>`;
   tl.innerHTML=h;
-  if(firstPaint){firstPaint=false;requestAnimationFrame(()=>{const w=$('#tlWrap');w.scrollTop=Math.max(0,((isToday?n:S().dayStart)-vS-45)*PPM)})}
+  if(firstPaint){firstPaint=false;requestAnimationFrame(()=>{$('#tlWrap').scrollTop=Math.max(0,((isToday?n:S().dayStart)-vS-45)*PPM)})}
 }
 
 /* ---------- ドラッグ ---------- */
 let drag=null;
-function findBlock(d,id){return blocks(d).find(b=>b.id===id)}
+const findBlock=(d,id)=>blocks(d).find(b=>b.id===id);
 const tlEl=$('#timeline');
 tlEl.addEventListener('pointerdown',e=>{
-  const el=e.target.closest('.blk');if(!el||e.button>0)return;
+  const el=e.target.closest('.blk');if(!el||e.button>0||e.ctrlKey)return;
   const d=day(),b=findBlock(d,el.dataset.id);if(!b)return;
-  drag={el,b,mode:e.target.closest('.grip')?'resize':'move',y0:e.clientY,moved:false,dm:0,armed:e.pointerType!=='touch'||!!e.target.closest('.grip')};
-  if(!drag.armed)drag.timer=setTimeout(()=>{if(drag){drag.armed=true;el.classList.add('lift');try{navigator.vibrate&&navigator.vibrate(8)}catch(_){}}},230);
+  drag={el,b,mode:e.target.closest('.grip')?'resize':'move',y0:e.clientY,moved:false,dm:0,armed:!b.gcal&&(e.pointerType!=='touch'||!!e.target.closest('.grip'))};
+  if(!drag.armed&&!b.gcal)drag.timer=setTimeout(()=>{if(drag){drag.armed=true;el.classList.add('lift');try{navigator.vibrate&&navigator.vibrate(8)}catch(_){}}},230);
   try{el.setPointerCapture(e.pointerId)}catch(_){}
 });
 tlEl.addEventListener('pointermove',e=>{
   if(!drag)return;const dy=e.clientY-drag.y0;
-  if(!drag.armed){if(Math.abs(dy)>8){clearTimeout(drag.timer);drag=null}return}
+  if(!drag.armed){if(Math.abs(dy)>8){clearTimeout(drag.timer);drag.cancelled=true}return}
   const sn=S().snap,dm=Math.round(dy/PPM/sn)*sn;
   if(dm!==0)drag.moved=true;drag.dm=dm;drag.el.classList.add('dragging');
   const tm=drag.el.querySelector('.tm');
@@ -542,20 +805,20 @@ tlEl.addEventListener('pointermove',e=>{
 tlEl.addEventListener('touchmove',e=>{if(drag&&drag.armed)e.preventDefault()},{passive:false});
 function endDrag(commit){
   if(!drag)return;clearTimeout(drag.timer);const g=drag;drag=null;
-  const d=day();
+  if(g.cancelled){render();return}
   if(commit&&g.moved){
-    const b=g.b,t=taskOf(d,b.taskId);
-    if(g.mode==='move'){const ns=b.start+g.dm;if(b.fixed)t.fixed=ns;else{const p=d.places.find(x=>x.id===b.id);p.start=ns;p.pinned=true}}
-    else{const nd=Math.max(5,b.dur+g.dm);if(b.fixed)t.dur=nd;else{const p=d.places.find(x=>x.id===b.id);if(t)t.dur=Math.max(5,t.dur+(nd-p.dur));p.dur=nd;p.pinned=true}}
-    changed(d);
-  }else if(commit&&!g.moved){
-    if(g.b.taskId==='__break')openBreak(g.b.id);else openEditor(g.b.taskId);
-    render();
-  }else render();
+    mutate(d=>{
+      const b=g.b,t=taskOf(d,b.taskId);
+      if(g.mode==='move'){const ns=b.start+g.dm;if(b.fixed)t.fixed=ns;else{const p=d.places.find(x=>x.id===b.id);p.start=ns;p.pinned=true}}
+      else{const nd=Math.max(5,b.dur+g.dm);if(b.fixed)t.dur=nd;else{const p=d.places.find(x=>x.id===b.id);if(t)t.dur=Math.max(5,t.dur+(nd-p.dur));p.dur=nd;p.pinned=true}}
+    });
+  }else if(commit){openBlock(g.b);render()}
+  else render();
 }
+function openBlock(b){if(b.gcal)openEvent(b.gid);else if(b.taskId==='__break')openBreak(b.id);else openEditor(b.taskId)}
 tlEl.addEventListener('pointerup',()=>endDrag(true));
 tlEl.addEventListener('pointercancel',()=>endDrag(false));
-tlEl.addEventListener('keydown',e=>{const el=e.target.closest('.blk');if(el&&(e.key==='Enter'||e.key===' ')){e.preventDefault();const b=findBlock(day(),el.dataset.id);if(b){b.taskId==='__break'?openBreak(b.id):openEditor(b.taskId)}}});
+tlEl.addEventListener('keydown',e=>{const el=e.target.closest('.blk');if(el&&(e.key==='Enter'||e.key===' ')){e.preventDefault();const b=findBlock(day(),el.dataset.id);if(b)openBlock(b)}});
 tlEl.addEventListener('click',e=>{
   const g=e.target.closest('.gap');if(!g)return;
   $('#tFixOn').checked=true;$('#tFix').disabled=false;$('#tFix').value=fmt(+g.dataset.start%1440);
@@ -564,54 +827,94 @@ tlEl.addEventListener('click',e=>{
 });
 
 /* ---------- 入力フォーム ---------- */
-$('#tCat').innerHTML=Object.entries(CATS).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('');
-$('#tCat').value='study';
+const catOpts=sel=>Object.entries(CATS).map(([k,v])=>`<option value="${k}"${k===sel?' selected':''}>${v.label}</option>`).join('');
+$('#tCat').innerHTML=catOpts('study');$('#rCat').innerHTML=catOpts('life');
+$('#rDays').innerHTML=[1,2,3,4,5,6,0].map(w=>`<label><input type="checkbox" value="${w}"${w>=1&&w<=5?' checked':''}><span class="${w===0?'sun':w===6?'sat':''}">${WD[w]}</span></label>`).join('');
 function syncChips(){const v=+$('#tDur').value;document.querySelectorAll('#durChips .chip').forEach(c=>c.setAttribute('aria-pressed',+c.dataset.d===v))}
 $('#durChips').addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;$('#tDur').value=c.dataset.d;syncChips()});
 $('#tDur').addEventListener('input',syncChips);syncChips();
 $('#tFixOn').addEventListener('change',e=>{$('#tFix').disabled=!e.target.checked});
-$('#addForm').addEventListener('submit',e=>{
-  e.preventDefault();const err=$('#addErr');
-  const title=$('#tTitle').value.trim(),dur=parseInt($('#tDur').value,10);
-  if(!title){err.textContent='タイトルを入れてください。';err.hidden=false;$('#tTitle').focus();return}
-  if(!(dur>=5)){err.textContent='所要時間は5分以上で入れてください。';err.hidden=false;$('#tDur').focus();return}
+function readForm(){
+  const err=$('#addErr'),title=$('#tTitle').value.trim(),dur=parseInt($('#tDur').value,10);
+  if(!title){err.textContent='タイトルを入れてください。';err.hidden=false;$('#tTitle').focus();return null}
+  if(!(dur>=5)){err.textContent='所要時間は5分以上で入れてください。';err.hidden=false;$('#tDur').focus();return null}
   err.hidden=true;
-  const d=day();
-  const t={id:uid(),title,dur,cat:$('#tCat').value,prio:+document.querySelector('input[name=prio]:checked').value,fixed:$('#tFixOn').checked?parseT($('#tFix').value):null,split:$('#tSplit').checked,done:false};
-  d.tasks.push(t);changed(d);
-  $('#tTitle').value='';$('#tFixOn').checked=false;$('#tFix').disabled=true;$('#tSplit').checked=false;
-  toast(remOf(d,t)?`「${title}」は空きに入りきりませんでした`:`「${title}」を追加しました`);
+  return{id:uid(),title,dur,cat:$('#tCat').value,prio:+document.querySelector('input[name=prio]:checked').value,fixed:$('#tFixOn').checked?parseT($('#tFix').value):null,split:$('#tSplit').checked,done:false};
+}
+function resetForm(){$('#tTitle').value='';$('#tFixOn').checked=false;$('#tFix').disabled=true;$('#tSplit').checked=false}
+$('#addForm').addEventListener('submit',e=>{
+  e.preventDefault();const t=readForm();if(!t)return;
+  mutate(d=>d.tasks.push(t));resetForm();
+  toast(remOf(day(),t)?`「${t.title}」は空きに入りきりませんでした`:`「${t.title}」を追加しました`,true);
+});
+$('#addInbox').addEventListener('click',()=>{
+  const t=readForm();if(!t)return;t.fixed=null;
+  mutate(()=>DB.inbox.push(t),{replan:false,msg:`「${t.title}」をあとでやるに入れました`});resetForm();
 });
 
-/* ---------- 一覧の操作 ---------- */
+/* ---------- リストの操作 ---------- */
 $('#taskList').addEventListener('click',e=>{
   const row=e.target.closest('.trow');if(!row)return;const d=day(),t=taskOf(d,row.dataset.id);if(!t)return;
-  if(e.target.closest('[data-act=done]')){t.done=!t.done;if(t.done)d.places.forEach(p=>{if(p.taskId===t.id)p.pinned=true});changed(d);return}
+  if(e.target.closest('[data-act=done]')){mutate(d=>{t.done=!t.done;if(t.done)d.places.forEach(p=>{if(p.taskId===t.id)p.pinned=true})});return}
   openEditor(t.id);
 });
-$('#planBtn').addEventListener('click',()=>{const d=day();autoPlan(d);save();render();toast('空き時間に組み直しました')});
-$('#unpinBtn').addEventListener('click',()=>{const d=day();d.places.forEach(p=>{const t=taskOf(d,p.taskId);if(!t||!t.done)p.pinned=false});autoPlan(d);save();render();toast('自動の配置に戻しました')});
+$('#inboxList').addEventListener('click',e=>{
+  const row=e.target.closest('.irow');if(!row)return;const i=DB.inbox.findIndex(x=>x.id===row.dataset.id);if(i<0)return;const t=DB.inbox[i];
+  const act=e.target.closest('[data-act]');if(!act)return;
+  if(act.dataset.act==='take')mutate(d=>{DB.inbox.splice(i,1);d.tasks.push({...t,id:uid(),fixed:null,done:false})},{msg:`「${t.title}」をこの日に入れました`});
+  if(act.dataset.act==='del')mutate(()=>DB.inbox.splice(i,1),{replan:false,msg:`「${t.title}」を消しました`});
+});
+$('#undoBtn').addEventListener('click',undo);
+document.addEventListener('keydown',e=>{
+  if((e.metaKey||e.ctrlKey)&&!e.shiftKey&&e.key.toLowerCase()==='z'&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)&&ov.hidden){e.preventDefault();undo()}
+});
+$('#planBtn').addEventListener('click',()=>mutate(d=>autoPlan(d),{replan:false,msg:'空き時間に組み直しました'}));
+$('#unpinBtn').addEventListener('click',()=>mutate(d=>{d.places.forEach(p=>{const t=taskOf(d,p.taskId);if(!t||!t.done)p.pinned=false});autoPlan(d)},{replan:false,msg:'自動の配置に戻しました'}));
 $('#carryArea').addEventListener('click',e=>{
-  const d=day();
-  if(e.target.id==='carryBtn'){const prev=DB.days[shift(curDate,-1)];const left=prev.tasks.filter(t=>!t.done&&t.fixed==null&&!t.sample&&!d.tasks.some(x=>x.from===t.id));
-    left.forEach(t=>d.tasks.push({...t,id:uid(),from:t.id,done:false}));changed(d);toast(`${left.length}件を持ち越しました`)}
-  if(e.target.id==='weekBtn'){const src=DB.days[e.target.dataset.src];const fx=src.tasks.filter(t=>t.fixed!=null);
-    fx.forEach(t=>d.tasks.push({...t,id:uid(),done:false,sample:false}));changed(d);toast(`${fx.length}件を写しました`)}
+  if(e.target.id==='carryBtn'){const prev=DB.days[shift(curDate,-1)];
+    mutate(d=>{const left=prev.tasks.filter(t=>!t.done&&t.fixed==null&&!t.sample&&!t.routineId&&!d.tasks.some(x=>x.from===t.id));left.forEach(t=>d.tasks.push({...t,id:uid(),from:t.id,done:false}))},{msg:'前日の残りを持ち越しました'})}
+  if(e.target.id==='weekBtn'){const src=DB.days[e.target.dataset.src];
+    mutate(d=>src.tasks.filter(t=>t.fixed!=null&&!t.routineId).forEach(t=>d.tasks.push({...t,id:uid(),done:false,sample:false})),{msg:'時刻つきの予定を写しました'})}
 });
 $('#copyBtn').addEventListener('click',()=>{
-  const d=day(),i=dInfo(curDate);
-  const lines=[`${i.md}（${i.wd}）`];
-  for(const b of blocks(d)){const t=taskOf(d,b.taskId);lines.push(`${fmt(b.start)}–${fmt(b.start+b.dur)} ${b.taskId==='__break'?'休憩':t.title}${t&&t.done?' ✓':''}`)}
+  const d=day(),i=dInfo(curDate),lines=[`${i.md}（${i.wd}）`];
+  for(const e of gEvents(curDate).filter(e=>e.allDay))lines.push(`終日 ${e.title}`);
+  for(const b of blocks(d)){const t=taskOf(d,b.taskId);lines.push(`${fmt(b.start)}–${fmt(b.start+b.dur)} ${nameOf(d,b)}${t&&t.done?' ✓':''}`)}
   const miss=d.tasks.filter(t=>remOf(d,t)>0);
   if(miss.length)lines.push('','入りきらない: '+miss.map(t=>`${t.title}（${durL(remOf(d,t))}）`).join('、'));
   copyText(lines.join('\n'));
 });
-$('#clearSample').addEventListener('click',()=>{const d=day();const ids=new Set(d.tasks.filter(t=>t.sample).map(t=>t.id));d.tasks=d.tasks.filter(t=>!t.sample);d.places=d.places.filter(p=>!ids.has(p.taskId)&&p.taskId!=='__break');changed(d)});
-$('#prevDay').addEventListener('click',()=>{curDate=shift(curDate,-1);firstPaint=true;render()});
-$('#nextDay').addEventListener('click',()=>{curDate=shift(curDate,1);firstPaint=true;render()});
-$('#todayBtn').addEventListener('click',()=>{curDate=todayStr();firstPaint=true;render()});
+$('#clearSample').addEventListener('click',()=>mutate(d=>{const ids=new Set(d.tasks.filter(t=>t.sample).map(t=>t.id));d.tasks=d.tasks.filter(t=>!t.sample);d.places=d.places.filter(p=>!ids.has(p.taskId)&&p.taskId!=='__break')}));
+function goDate(s){curDate=s;firstPaint=true;render();if(gLive())gSync(false)}
+$('#prevDay').addEventListener('click',()=>goDate(shift(curDate,-1)));
+$('#nextDay').addEventListener('click',()=>goDate(shift(curDate,1)));
+$('#todayBtn').addEventListener('click',()=>goDate(todayStr()));
+$('#week').addEventListener('click',e=>{const b=e.target.closest('.wk');if(b)goDate(b.dataset.date)});
+$('#nowCard').addEventListener('click',e=>{
+  const a=e.target.closest('[data-act]');if(!a)return;
+  if(a.dataset.act==='ndone')mutate(d=>{const t=taskOf(d,a.dataset.tid);if(t){t.done=true;d.places.forEach(p=>{if(p.taskId===t.id)p.pinned=true})}},{msg:'完了にしました'});
+  if(a.dataset.act==='extend')mutate(d=>{
+    const b=findBlock(d,a.dataset.bid);if(!b)return;const t=taskOf(d,b.taskId);
+    if(b.fixed){t.dur+=15}else{const p=d.places.find(x=>x.id===b.id);p.dur+=15;p.pinned=true;if(t)t.dur+=15}
+  },{msg:'15分のばして、後ろの予定を組み直しました'});
+});
 
-/* ---------- 編集シート ---------- */
+/* ---------- Googleパネルの操作 ---------- */
+$('#gPanel').addEventListener('click',e=>{
+  const id=e.target.closest('button')&&e.target.closest('button').id;
+  if(id==='gLogin')gLogin();
+  if(id==='gLogout')gLogout();
+  if(id==='gReload')gSync(true);
+  if(id==='gClientSave'){const v=$('#gClientIn').value.trim();if(!/\.apps\.googleusercontent\.com$/.test(v)){toast('「〜.apps.googleusercontent.com」で終わるIDを入れてください');return}
+    DB.gcal.clientId=v;GC.client=null;save();renderSettings();renderGoogle();toast('クライアントIDを保存しました')}
+});
+$('#gPanel').addEventListener('change',e=>{
+  const c=e.target.closest('[data-cal]');if(!c)return;
+  DB.gcal.selected[c.dataset.cal]=c.checked;save();GC.cache={};gSync(true);
+});
+$('#gStrip').addEventListener('click',e=>{const c=e.target.closest('[data-gid]');if(c)openEvent(c.dataset.gid)});
+
+/* ---------- シート ---------- */
 const ov=$('#overlay'),sh=$('#sheet');
 function closeSheet(){ov.hidden=true;sh.innerHTML=''}
 ov.addEventListener('click',e=>{if(e.target===ov)closeSheet()});
@@ -623,30 +926,33 @@ function openEditor(id){
   sh.innerHTML=`<h2>予定を編集</h2>
    <label class="field"><span>タイトル</span><input type="text" id="eTitle" value="${esc(t.title)}"></label>
    <div class="row"><label class="field"><span>所要時間（分）</span><input type="number" id="eDur" min="5" step="5" value="${t.dur}"></label>
-   <label class="field"><span>分類</span><select id="eCat">${Object.entries(CATS).map(([k,v])=>`<option value="${k}"${k===t.cat?' selected':''}>${v.label}</option>`).join('')}</select></label></div>
+   <label class="field"><span>分類</span><select id="eCat">${catOpts(t.cat)}</select></label></div>
    <div class="field"><span>優先度</span><div class="seg">${[1,2,3].map(p=>`<label><input type="radio" name="eprio" value="${p}"${t.prio===p?' checked':''}><span>${PRIO[p]}</span></label>`).join('')}</div></div>
    <div class="timepick"><label class="check"><input type="checkbox" id="eFixOn"${t.fixed!=null?' checked':''}> 開始時刻を決める</label><input type="time" id="eFix" step="300" value="${fmt(editStart(d,t)%1440)}"${t.fixed==null?' disabled':''}></div>
    <label class="check"><input type="checkbox" id="eSplit"${t.split?' checked':''}> 何回かに分けてもいい</label>
    <label class="check"><input type="checkbox" id="eDone"${t.done?' checked':''}> 完了した</label>
-   <div class="sheet-actions"><button class="danger" id="eDel">削除</button><span class="sp"></span>
+   <div class="sheet-actions"><button class="danger" id="eDel">削除</button><button class="ghost" id="eInbox">あとでやるへ移す</button><span class="sp"></span>
     ${pinned?'<button class="ghost" id="eUnpin">手での配置をやめる</button>':''}
     <button class="ghost" id="eCancel">閉じる</button><button class="primary" id="eSave">保存</button></div>`;
   ov.hidden=false;
   $('#eFixOn').addEventListener('change',e=>{$('#eFix').disabled=!e.target.checked});
   $('#eCancel').onclick=closeSheet;
-  $('#eDel').onclick=e=>{const b=e.currentTarget;if(!b.classList.contains('armed')){b.classList.add('armed');b.textContent='もう一度押すと削除';return}
-    d.tasks=d.tasks.filter(x=>x.id!==id);d.places=d.places.filter(p=>p.taskId!==id);closeSheet();changed(d);toast(`「${t.title}」を削除しました`)};
-  if(pinned)$('#eUnpin').onclick=()=>{d.places.forEach(p=>{if(p.taskId===id)p.pinned=false});closeSheet();changed(d)};
+  $('#eDel').onclick=()=>{closeSheet();mutate(d=>{d.tasks=d.tasks.filter(x=>x.id!==id);d.places=d.places.filter(p=>p.taskId!==id)},{msg:`「${t.title}」を削除しました`})};
+  $('#eInbox').onclick=()=>{closeSheet();mutate(d=>{d.tasks=d.tasks.filter(x=>x.id!==id);d.places=d.places.filter(p=>p.taskId!==id);DB.inbox.push({id:uid(),title:t.title,dur:t.dur,cat:t.cat,prio:t.prio,split:t.split,fixed:null,done:false})},{msg:`「${t.title}」をあとでやるへ移しました`})};
+  if(pinned)$('#eUnpin').onclick=()=>{closeSheet();mutate(d=>d.places.forEach(p=>{if(p.taskId===id)p.pinned=false}))};
   $('#eSave').onclick=()=>{
     const title=$('#eTitle').value.trim(),dur=parseInt($('#eDur').value,10);
     if(!title||!(dur>=5)){toast('タイトルと5分以上の所要時間を入れてください');return}
-    const wasFixed=t.fixed!=null,fixOn=$('#eFixOn').checked;
-    t.title=title;t.cat=$('#eCat').value;t.prio=+sh.querySelector('input[name=eprio]:checked').value;t.split=$('#eSplit').checked;
-    if(dur!==t.dur){t.dur=dur;d.places=d.places.filter(p=>p.taskId!==id)}
-    t.fixed=fixOn?parseT($('#eFix').value):null;
-    if(fixOn||wasFixed)d.places=d.places.filter(p=>p.taskId!==id);
-    const nd=$('#eDone').checked;if(nd&&!t.done)d.places.forEach(p=>{if(p.taskId===id)p.pinned=true});t.done=nd;
-    closeSheet();changed(d);
+    const fixOn=$('#eFixOn').checked,fixV=$('#eFix').value,cat=$('#eCat').value,prio=+sh.querySelector('input[name=eprio]:checked').value,split=$('#eSplit').checked,nd=$('#eDone').checked;
+    closeSheet();
+    mutate(d=>{
+      const wasFixed=t.fixed!=null;
+      t.title=title;t.cat=cat;t.prio=prio;t.split=split;
+      if(dur!==t.dur){t.dur=dur;d.places=d.places.filter(p=>p.taskId!==id)}
+      t.fixed=fixOn?parseT(fixV):null;
+      if(fixOn||wasFixed)d.places=d.places.filter(p=>p.taskId!==id);
+      if(nd&&!t.done)d.places.forEach(p=>{if(p.taskId===id)p.pinned=true});t.done=nd;
+    });
   };
   setTimeout(()=>$('#eTitle').focus(),30);
 }
@@ -656,8 +962,84 @@ function openBreak(pid){
    <p class="hint">休憩は作業が続いたときに自動で入ります。間隔と長さは「組み方の設定」で変えられます。</p>
    <div class="sheet-actions"><span class="sp"></span>${p.pinned?'<button class="ghost" id="bUnpin">自動の位置に戻す</button>':''}<button class="primary" id="bClose">閉じる</button></div>`;
   ov.hidden=false;$('#bClose').onclick=closeSheet;
-  if(p.pinned)$('#bUnpin').onclick=()=>{p.pinned=false;closeSheet();changed(d)};
+  if(p.pinned)$('#bUnpin').onclick=()=>{closeSheet();mutate(()=>{p.pinned=false})};
 }
+function openEvent(gid){
+  const e=gEvents(curDate).find(x=>x.id===gid);if(!e)return;
+  const ign=gIgnored(curDate).has(gid);
+  sh.innerHTML=`<h2>${esc(e.title)}</h2>
+   <div class="tmeta" style="font-size:14px"><span class="mono">${e.allDay?'終日':fmt(e.rawStart)+'–'+fmt(e.rawEnd)}</span><span style="display:inline-flex;align-items:center;gap:6px"><i class="dot" style="background:${esc(e.color)}"></i>${esc(e.calName)}</span></div>
+   ${e.location?`<p class="hint">場所: ${esc(e.location)}</p>`:''}
+   ${e.desc.trim()?`<p class="desc">${esc(e.desc.trim())}</p>`:''}
+   <p class="hint">Googleカレンダーの予定はここでは変更できません。段取りはこの予定を避けて組まれます。</p>
+   <div class="sheet-actions">${e.link?`<a class="ghost" href="${esc(e.link)}" target="_blank" rel="noopener" style="text-decoration:none">Googleカレンダーで開く</a>`:''}<span class="sp"></span>
+    ${e.allDay?'':`<button class="ghost" id="evIgn">${ign?'配置で考えるようにする':'配置では無視する'}</button>`}<button class="primary" id="evClose">閉じる</button></div>`;
+  ov.hidden=false;$('#evClose').onclick=closeSheet;
+  if(!e.allDay)$('#evIgn').onclick=()=>{closeSheet();mutate(()=>{const L=DB.gcal.ignore[curDate]=DB.gcal.ignore[curDate]||[];const i=L.indexOf(gid);if(i>=0)L.splice(i,1);else L.push(gid)},{msg:ign?'この予定を避けて組み直しました':'この予定を無視して組み直しました'})};
+}
+
+/* ---------- 右クリックメニュー（編集・複製） ---------- */
+const ctx=$('#ctx');let ctxTarget=null;
+function closeCtx(){ctx.hidden=true;ctxTarget=null}
+function openCtx(x,y,b){
+  const d=day();ctxTarget=b;
+  const editLabel=b.gcal?'詳細を見る':'編集';
+  const canDup=b.taskId!=='__break';
+  ctx.innerHTML=`<div class="ctit">${esc(nameOf(d,b))}</div><button role="menuitem" data-c="edit">${editLabel}</button>${canDup?'<button role="menuitem" data-c="dup">複製</button>':''}`;
+  ctx.hidden=false;
+  const r=ctx.getBoundingClientRect();
+  ctx.style.left=Math.max(8,Math.min(x,innerWidth-r.width-8))+'px';
+  ctx.style.top=Math.max(8,Math.min(y,innerHeight-r.height-8))+'px';
+  ctx.querySelector('button').focus({preventScroll:true});
+}
+function dupBlock(b){
+  const d=day();
+  if(b.gcal){
+    const e=b.gcal;
+    mutate(d=>d.tasks.push({id:uid(),title:e.title,cat:'work',dur:Math.max(5,Math.round(e.dur/5)*5),prio:2,fixed:snapUp(e.start+e.dur+S().buffer),split:false,done:false}),{msg:`「${e.title}」を自分の予定として複製しました`});
+    return;
+  }
+  const t=taskOf(d,b.taskId);if(!t)return;
+  const copy={...t,id:uid(),done:false};delete copy.sample;delete copy.routineId;delete copy.from;
+  if(t.fixed!=null)copy.fixed=snapUp(t.fixed+t.dur+S().buffer);
+  mutate(d=>d.tasks.push(copy),{msg:`「${t.title}」を複製しました`});
+}
+ctx.addEventListener('click',e=>{
+  const c=e.target.closest('[data-c]');if(!c||!ctxTarget)return;const b=ctxTarget;closeCtx();
+  if(c.dataset.c==='edit')openBlock(b);else dupBlock(b);
+});
+ctx.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){closeCtx();return}
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();const bs=[...ctx.querySelectorAll('button')],i=bs.indexOf(document.activeElement);bs[(i+(e.key==='ArrowDown'?1:-1)+bs.length)%bs.length].focus()}
+});
+document.addEventListener('pointerdown',e=>{if(!ctx.hidden&&!e.target.closest('#ctx'))closeCtx()},true);
+window.addEventListener('blur',closeCtx);
+$('#tlWrap').addEventListener('scroll',closeCtx,{passive:true});
+tlEl.addEventListener('contextmenu',e=>{
+  const el=e.target.closest('.blk');if(!el)return;e.preventDefault();
+  if(drag&&drag.moved)return;
+  if(drag){clearTimeout(drag.timer);drag.el.classList.remove('lift');drag=null}
+  const b=findBlock(day(),el.dataset.id);if(b)openCtx(e.clientX,e.clientY,b);
+});
+$('#taskList').addEventListener('contextmenu',e=>{
+  const row=e.target.closest('.trow');if(!row)return;e.preventDefault();
+  const d=day(),t=taskOf(d,row.dataset.id);if(!t)return;
+  const b=t.fixed!=null?{id:'f_'+t.id,taskId:t.id,start:t.fixed,dur:t.dur,fixed:true}:{id:'t_'+t.id,taskId:t.id,start:firstStart(d,t),dur:t.dur};
+  openCtx(e.clientX,e.clientY,b);
+});
+
+/* ---------- ルーティンの操作 ---------- */
+$('#rAdd').addEventListener('click',()=>{
+  const title=$('#rTitle').value.trim(),dur=parseInt($('#rDur').value,10);
+  const days=[...document.querySelectorAll('#rDays input:checked')].map(x=>+x.value);
+  if(!title||!(dur>=5)){toast('名前と5分以上の所要時間を入れてください');return}
+  if(!days.length){toast('曜日を1つ以上選んでください');return}
+  const r={id:uid(),title,dur,cat:$('#rCat').value,fixed:$('#rFix').value?parseT($('#rFix').value):null,days,prio:2,split:false};
+  mutate(d=>{DB.routines.push(r);if(curDate>=todayStr())applyRoutines(d,curDate)},{msg:`ルーティン「${title}」を追加しました`});
+  $('#rTitle').value='';$('#rFix').value='';
+});
+$('#rApply').addEventListener('click',()=>{let n=0;mutate(d=>{n=applyRoutines(d,curDate)});toast(n?`${n}件入れました`:'この日に足りないルーティンはありません')});
+$('#rList').addEventListener('click',e=>{const b=e.target.closest('[data-rdel]');if(!b)return;mutate(()=>{DB.routines=DB.routines.filter(r=>r.id!==b.dataset.rdel)},{replan:false,msg:'ルーティンを消しました（入っている予定はそのまま残ります）'})});
 
 /* ---------- 設定 ---------- */
 function opts(sel,list,val){$(sel).innerHTML=list.map(([v,l])=>`<option value="${v}"${v===val?' selected':''}>${l}</option>`).join('')}
@@ -668,43 +1050,69 @@ function renderSettings(){
   opts('#sSnap',[5,10,15,30].map(v=>[v,v+'分']),s.snap);
   opts('#sBrEvery',[[0,'入れない'],[50,'50分ごと'],[60,'60分ごと'],[90,'90分ごと'],[120,'120分ごと']],s.breakEvery);
   opts('#sBrLen',[5,10,15,20,30].map(v=>[v,v+'分']),s.breakLen);
-  $('#sFromNow').checked=s.fromNow;$('#sAuto').checked=s.autoReplan;
+  $('#sFromNow').checked=s.fromNow;$('#sAuto').checked=s.autoReplan;$('#sNotify').checked=s.notify;
+  $('#sClient').value=DB.gcal.clientId||'';
 }
-[['#sStart','dayStart'],['#sEnd','dayEnd'],['#sBuf','buffer'],['#sSnap','snap'],['#sBrEvery','breakEvery'],['#sBrLen','breakLen']].forEach(([sel,k])=>$(sel).addEventListener('change',e=>{S()[k]=+e.target.value;changed(day())}));
-$('#sFromNow').addEventListener('change',e=>{S().fromNow=e.target.checked;changed(day())});
+[['#sStart','dayStart'],['#sEnd','dayEnd'],['#sBuf','buffer'],['#sSnap','snap'],['#sBrEvery','breakEvery'],['#sBrLen','breakLen']].forEach(([sel,k])=>$(sel).addEventListener('change',e=>mutate(()=>{S()[k]=+e.target.value})));
+$('#sFromNow').addEventListener('change',e=>mutate(()=>{S().fromNow=e.target.checked}));
 $('#sAuto').addEventListener('change',e=>{S().autoReplan=e.target.checked;save()});
+$('#sNotify').addEventListener('change',async e=>{
+  if(!e.target.checked){S().notify=false;save();return}
+  if(!('Notification' in window)){e.target.checked=false;toast('このブラウザは通知に対応していません');return}
+  let p=Notification.permission;if(p==='default'){try{p=await Notification.requestPermission()}catch(_){}}
+  if(p!=='granted'){e.target.checked=false;S().notify=false;save();toast('通知が許可されていません。ブラウザのサイト設定で許可してください');return}
+  S().notify=true;save();toast('予定の5分前に通知します');
+});
+$('#sClient').addEventListener('change',e=>{const v=e.target.value.trim();DB.gcal.clientId=v;GC.client=null;save();renderGoogle()});
 $('#bkCopy').addEventListener('click',()=>copyText(JSON.stringify(DB)));
 $('#bkRestore').addEventListener('click',e=>{
   const b=e.currentTarget;let o;
   try{o=JSON.parse($('#bkText').value);if(!o||typeof o.days!=='object')throw 0}catch(_){toast('貼り付けた内容を読み取れませんでした。「全データをコピー」で取った文字列をそのまま貼ってください');return}
   if(!b.classList.contains('armed')){b.classList.add('armed');b.textContent='もう一度押すと今のデータを上書きします';return}
-  DB={v:1,settings:{...DEF,...(o.settings||{})},days:o.days};save();b.classList.remove('armed');b.textContent='貼り付けた内容で上書きする';$('#bkText').value='';
-  renderSettings();firstPaint=true;render();toast('バックアップから戻しました');
+  snap();DB=normalize(o);save();b.classList.remove('armed');b.textContent='貼り付けた内容で上書きする';$('#bkText').value='';
+  renderSettings();firstPaint=true;render();toast('バックアップから戻しました',true);
 });
 
 /* ---------- 共通 ---------- */
 let toastT;
-function toast(msg){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,2600)}
+function toast(msg,withUndo){
+  const t=$('#toast');t.innerHTML=esc(msg)+(withUndo&&undoStack.length?'<button id="toastUndo">元に戻す</button>':'');t.hidden=false;
+  const u=$('#toastUndo');if(u)u.onclick=()=>{t.hidden=true;undo()};
+  clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,withUndo?4200:2600);
+}
 function copyText(txt){
   const fb=()=>{sh.innerHTML=`<h2>コピー用テキスト</h2><p class="hint">自動でコピーできなかったので、下の文字を選択してコピーしてください。</p><textarea id="cpT" rows="10" readonly>${esc(txt)}</textarea><div class="sheet-actions"><span class="sp"></span><button class="primary" id="cpC">閉じる</button></div>`;ov.hidden=false;const ta=$('#cpT');ta.focus();ta.select();$('#cpC').onclick=closeSheet};
   try{navigator.clipboard.writeText(txt).then(()=>toast('コピーしました'),fb)}catch(_){fb()}
 }
+const notified=new Set();
+function notifyTick(){
+  if(!S().notify||!('Notification' in window)||Notification.permission!=='granted'||curDate!==todayStr())return;
+  const d=day(),n=nowMin();
+  for(const b of blocks(d)){
+    if(b.taskId==='__break'||(taskOf(d,b.taskId)||{}).done)continue;
+    const lead=b.start-n,key=curDate+'|'+b.id+'|'+b.start;
+    if(lead>0&&lead<=5&&!notified.has(key)){notified.add(key);try{new Notification(`${fmt(b.start)}から ${nameOf(d,b)}`,{body:`あと${lead}分で始まります（${durL(b.dur)}）`,tag:key})}catch(_){}}
+  }
+}
 
 /* ---------- 起動 ---------- */
 function makeSample(date){
-  const d=DB.days[date]={tasks:[],places:[]};
+  const d=DB.days[date]={tasks:[],places:[],routined:true};
   const fx=[['朝食・身支度','life',45,'07:00'],['移動（大学まで）','move',35,'08:15'],['講義','class',190,'09:00'],['昼食','life',50,'12:10'],['実習','class',190,'13:00'],['移動（帰宅）','move',35,'16:20'],['夕食','life',50,'19:00'],['入浴','life',40,'22:30']];
   const fl=[['講義ノートの復習','study',90,1,true],['実習レポートを書く','work',60,1,false],['メール・連絡の返信','work',15,2,false],['英会話の練習','study',30,2,false],['洗濯','life',20,3,false],['ゲーム制作（Unity）','hobby',60,3,true]];
   fx.forEach(([title,cat,dur,f])=>d.tasks.push({id:uid(),title,cat,dur,prio:2,fixed:parseT(f),split:false,done:false,sample:true}));
   fl.forEach(([title,cat,dur,prio,split])=>d.tasks.push({id:uid(),title,cat,dur,prio,fixed:null,split,done:false,sample:true}));
-  const keep=curDate;curDate=date;autoPlan(d);curDate=keep;
+  autoPlan(d);
 }
 DB=load();
-if(!DB){DB={v:1,settings:{...DEF},days:{}};makeSample(curDate);save()}
-DB.settings={...DEF,...DB.settings};
+if(!DB){DB=normalize(null);makeSample(curDate);save()}
 renderSettings();render();
-setInterval(()=>{if(!drag&&ov.hidden&&curDate===todayStr()){renderNow(day());renderTimeline(day())}},30000);
+if(gLive())gSync(true);
+setInterval(()=>{
+  if(curDate===todayStr()&&!drag&&ov.hidden){renderNow(day());renderTimeline(day())}
+  notifyTick();
+},30000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&gLive())gSync(false)});
 </script>
-
 </body>
 </html>
