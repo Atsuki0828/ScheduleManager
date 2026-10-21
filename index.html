@@ -498,6 +498,14 @@ function gLogin(){
   const o={prompt:DB.gcal.email&&GC.drive?'':'consent'};if(DB.gcal.email)o.login_hint=DB.gcal.email;
   GC.client.requestAccessToken(o);
 }
+/* 同期だけを許可してもらう。1つの権限だけを求めるので、確認画面にチェックボックスが出ず「許可」を押すだけで済む */
+function gEnableSync(){
+  if(!clientId()){toast('先に「組み方の設定」でクライアントIDを入れてください');return}
+  if(!(window.google&&google.accounts&&google.accounts.oauth2)){toast('Googleの読み込みを待っています。数秒後にもう一度押してください');return}
+  if(!GC.driveClient)GC.driveClient=google.accounts.oauth2.initTokenClient({client_id:clientId(),scope:DRIVE_SCOPE,include_granted_scopes:true,callback:r=>{GC.askedDrive=true;onToken(r)},
+    error_callback:e=>{GC.status=e&&e.type==='popup_closed'?'許可の画面が閉じられました。もう一度「同期を有効にする」を押してください。':'許可の画面を開けませんでした。ポップアップがブロックされていないか確認してください。';GC.bad=true;renderGoogle()}});
+  GC.driveClient.requestAccessToken({prompt:'consent',login_hint:DB.gcal.email||undefined});
+}
 /* 期限切れのあと、予定を編集したタイミングで目立たず再接続する（クリック操作の中なのでポップアップが許可される） */
 function gQuietReconnect(){
   if(GC.quiet||!gInitClient())return;
@@ -506,6 +514,7 @@ function gQuietReconnect(){
 async function onToken(r){
   GC.quiet=false;
   if(!r||r.error){GC.status='ログインできませんでした（'+esc(r&&(r.error_description||r.error)||'不明なエラー')+'）。';GC.bad=true;renderGoogle();return}
+  const asked=GC.askedDrive;GC.askedDrive=false;
   GC.cal=google.accounts.oauth2.hasGrantedAllScopes(r,CAL_SCOPE);
   GC.drive=google.accounts.oauth2.hasGrantedAllScopes(r,DRIVE_SCOPE);
   GC.token=r.access_token;GC.exp=Date.now()+(+r.expires_in||3600)*1000-60000;
@@ -515,8 +524,8 @@ async function onToken(r){
     const u=await gApi('https://www.googleapis.com/oauth2/v3/userinfo');
     if(DB.gcal.email&&u.email&&u.email!==DB.gcal.email)syncReset();
     DB.gcal.email=u.email||null;DB.gcal.name=u.name||u.email||'Googleアカウント';save();
-    if(GC.drive)await syncNow();
-    else{GC.status='ほかの端末との同期が許可されていません。同期するには「ログインし直す」を押し、Googleドライブのアプリデータへのアクセスにチェックを入れてください。';GC.bad=true}
+    if(GC.drive){if(asked)toast('同期を有効にしました');await syncNow()}
+    else if(asked){GC.status='ドライブへのアクセスが許可されませんでした。もう一度「同期を有効にする」を押し、確認画面で「許可」（チェックボックスがあればチェック）を選んでください。';GC.bad=true}
     if(GC.cal){await gLoadCalendars();GC.cache={};await gSync(true)}
     else{GC.status=(GC.status?GC.status+' ':'')+'カレンダーの閲覧が許可されていないため、予定は取り込めません。';GC.bad=true;render()}
   }catch(e){gErr(e)}
@@ -591,7 +600,7 @@ async function syncNow(){
     SY.stamps=stampsOf(DB);SY.at=Date.now();sySave();
   }catch(e){
     if(e.message==='auth')SY.err='接続の期限が切れたため同期が止まっています。';
-    else if(/403/.test(e.message))SY.err=/insufficient|scope/i.test(e.message)?'Googleドライブへの保存が許可されていません。「ログインし直す」を押してください。':'同期できませんでした。Google CloudでGoogle Drive APIが有効か確認してください。';
+    else if(/403/.test(e.message))SY.err=/insufficient|scope/i.test(e.message)?'Googleドライブへの保存が許可されていません。「ログインし直す」を押してください。':'同期できませんでした。Google Cloud で「Google Drive API」を有効にしてください（有効にしてから数分かかることがあります）。';
     else if(/404/.test(e.message)){syncReset();SY.err='同期ファイルが見つからなかったので、作り直します。';SY.again=true}
     else SY.err='同期できませんでした（'+esc(e.message)+'）。';
   }finally{
@@ -603,7 +612,7 @@ function syncLineHTML(){
   if(!DB.gcal.email)return'';
   const t=SY.at?`${new Date(SY.at).getHours()}:${pad(new Date(SY.at).getMinutes())}`:'';
   let msg,bad=false;
-  if(!GC.drive&&gLive()){msg='同期はオフです（ドライブの許可が必要）';bad=true}
+  if(!GC.drive&&gLive())return `<div class="actions" id="syncLine"><button class="primary" id="gEnableSync">同期を有効にする</button><span class="gstatus">ほかの端末と同期するには、Googleドライブのアプリ専用領域への保存を許可してください。</span></div>`;
   else if(SY.busy)msg='同期中…';
   else if(SY.err){msg=SY.err;bad=true}
   else if(!gLive())msg=SY.stamps&&stampsOf(DB)!==SY.stamps?'未送信の変更があります。再接続すると同期します':'再接続すると、ほかの端末と同期します';
@@ -821,7 +830,7 @@ function renderGoogle(){
   const c=GC.cache[curDate],evs=gEvents(curDate);
   const info=GC.loading?'読み込み中…':c?`この日の予定 ${evs.length}件 · ${new Date(c.at).getHours()}:${pad(new Date(c.at).getMinutes())} 更新`:'';
   p.innerHTML=`<div class="gtop">${GLOGO}<div style="min-width:0;flex:1"><div class="gname">${esc(DB.gcal.name||'Googleアカウント')}</div><div class="gstatus">${esc(DB.gcal.email||'')}</div></div>
-     <button class="ghost small" id="gReload"${GC.loading||SY.busy?' disabled':''}>再読み込み</button>${GC.drive?'':'<button class="ghost small" id="gRelogin">ログインし直す</button>'}<button class="ghost small" id="gLogout">ログアウト</button></div>
+     <button class="ghost small" id="gReload"${GC.loading||SY.busy?' disabled':''}>再読み込み</button><button class="ghost small" id="gLogout">ログアウト</button></div>
    <p class="gstatus">${info}</p>${syncLineHTML()}${st}
    <details class="sub"><summary>表示するカレンダー（${DB.gcal.calendars.filter(x=>DB.gcal.selected[x.id]).length}/${DB.gcal.calendars.length}）</summary>
     <div class="calist">${DB.gcal.calendars.map(x=>`<label><input type="checkbox" data-cal="${esc(x.id)}"${DB.gcal.selected[x.id]?' checked':''}><i class="cdot" style="background:${esc(x.color)}"></i><span class="cn">${esc(x.summary)}</span></label>`).join('')}</div></details>`;
@@ -1083,6 +1092,7 @@ $('#gPanel').addEventListener('click',e=>{
   if(id==='gLogin')gLogin();
   if(id==='gLogout')gLogout();
   if(id==='gReload'){gSync(true);syncNow()}
+  if(id==='gEnableSync')gEnableSync();
   if(id==='gRelogin'&&gInitClient())GC.client.requestAccessToken({prompt:'consent',login_hint:DB.gcal.email||undefined});
   if(id==='gClientSave'){const v=$('#gClientIn').value.trim();if(!/\.apps\.googleusercontent\.com$/.test(v)){toast('「〜.apps.googleusercontent.com」で終わるIDを入れてください');return}
     edit(()=>{DB.gcal.clientId=v});GC.client=null;renderSettings();renderGoogle();toast('クライアントIDを保存しました')}
