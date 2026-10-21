@@ -245,7 +245,14 @@ details.settings>summary{padding:12px 16px;cursor:pointer;font-size:14px}
 .ctx{position:fixed;z-index:55;background:var(--sheet);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:4px;min-width:150px;display:flex;flex-direction:column}
 .ctx .ctit{font-size:11.5px;color:var(--muted);padding:4px 10px 2px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ctx button{background:transparent;border:0;border-radius:6px;text-align:left;padding:7px 10px;font-size:14px}
-.ctx button:hover,.ctx button:focus-visible{background:color-mix(in srgb,var(--accent) 12%,var(--sheet));outline:none}
+.ctx button:hover,.ctx button:focus-visible,.ctx button[aria-expanded="true"]{background:color-mix(in srgb,var(--accent) 12%,var(--sheet));outline:none}
+.ctx .dupwrap{position:relative;display:flex;flex-direction:column}
+.ctx .dupwrap>button{display:flex;justify-content:space-between;align-items:center;gap:16px}
+.ctx .arr{color:var(--muted);font-size:15px;line-height:1}
+.ctx-sub{position:absolute;left:calc(100% - 2px);top:-5px;background:var(--sheet);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:4px;min-width:200px;display:flex;flex-direction:column}
+.ctx-sub.flip{left:auto;right:calc(100% - 2px)}
+.ctx-sub button{display:flex;flex-direction:column;gap:0;line-height:1.35}
+.ctx-sub small{font-family:var(--f-mono);font-size:11px;color:var(--muted)}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--sheet);padding:9px 16px;border-radius:999px;font-size:14px;z-index:60;max-width:calc(100% - 32px);display:flex;gap:12px;align-items:center}
 .toast button{background:transparent;border:0;color:var(--hi);font-weight:700;padding:0}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
@@ -597,7 +604,10 @@ function applyRoutines(d,date){
 }
 function ensureDay(){
   const d=day();
-  if(!d.routined&&curDate>=todayStr()){d.routined=true;if(applyRoutines(d,curDate))autoPlan(d);save()}
+  let plan=false;
+  if(!d.routined&&curDate>=todayStr()){d.routined=true;if(applyRoutines(d,curDate))plan=true}
+  if(d.needsPlan){delete d.needsPlan;plan=true}
+  if(plan){autoPlan(d);save()}
   return d;
 }
 
@@ -632,7 +642,7 @@ function renderWeek(){
   for(let i=0;i<7;i++){
     const ds=shift(mon,i),inf=dInfo(ds),dd=DB.days[ds];
     let mins=0,miss=0;
-    if(dd){for(const t of dd.tasks){if(t.fixed!=null)mins+=t.dur;miss+=remOf(dd,t)}for(const p of dd.places)if(p.taskId!=='__break')mins+=p.dur}
+    if(dd){for(const t of dd.tasks){if(t.fixed!=null||dd.needsPlan)mins+=t.dur;else miss+=remOf(dd,t)}if(!dd.needsPlan)for(const p of dd.places)if(p.taskId!=='__break')mins+=p.dur}
     if(ds===curDate)mins+=gBlocks().reduce((s,b)=>s+b.dur,0);
     const pct=Math.min(100,mins/cap*100);
     h+=`<button class="wk${ds===curDate?' sel':''}${ds===tdy?' today':''}" data-date="${ds}" aria-label="${inf.md}（${inf.wd}）予定${durL(mins)}">
@@ -981,36 +991,85 @@ function openEvent(gid){
 /* ---------- 右クリックメニュー（編集・複製） ---------- */
 const ctx=$('#ctx');let ctxTarget=null;
 function closeCtx(){ctx.hidden=true;ctxTarget=null}
+const md=s=>{const[,m,d]=s.split('-').map(Number);return`${m}/${d}`};
+const weekDates=s=>{const mon=shift(s,-((dInfo(s).w+6)%7));return[0,1,2,3,4,5,6].map(i=>shift(mon,i))};
+let subTimer=null;
 function openCtx(x,y,b){
   const d=day();ctxTarget=b;
   const editLabel=b.gcal?'詳細を見る':'編集';
   const canDup=b.taskId!=='__break';
-  ctx.innerHTML=`<div class="ctit">${esc(nameOf(d,b))}</div><button role="menuitem" data-c="edit">${editLabel}</button>${canDup?'<button role="menuitem" data-c="dup">複製</button>':''}`;
+  const wk=weekDates(curDate),nx=shift(curDate,1);
+  ctx.innerHTML=`<div class="ctit">${esc(nameOf(d,b))}</div><button role="menuitem" data-c="edit">${editLabel}</button>${canDup?`
+    <div class="dupwrap"><button role="menuitem" data-c="dup" aria-haspopup="menu" aria-expanded="false">複製<span class="arr" aria-hidden="true">›</span></button>
+      <div class="ctx-sub" role="menu" aria-label="複製先" hidden>
+        <button role="menuitem" data-c="dup-same">その日に複製<small>${md(curDate)}（${dInfo(curDate).wd}）</small></button>
+        <button role="menuitem" data-c="dup-next">次の日に複製<small>${md(nx)}（${dInfo(nx).wd}）</small></button>
+        <button role="menuitem" data-c="dup-week">その週に複製<small>${md(wk[0])}〜${md(wk[6])} の他の6日</small></button>
+      </div></div>`:''}`;
   ctx.hidden=false;
   const r=ctx.getBoundingClientRect();
   ctx.style.left=Math.max(8,Math.min(x,innerWidth-r.width-8))+'px';
   ctx.style.top=Math.max(8,Math.min(y,innerHeight-r.height-8))+'px';
   ctx.querySelector('button').focus({preventScroll:true});
-}
-function dupBlock(b){
-  const d=day();
-  if(b.gcal){
-    const e=b.gcal;
-    mutate(d=>d.tasks.push({id:uid(),title:e.title,cat:'work',dur:Math.max(5,Math.round(e.dur/5)*5),prio:2,fixed:snapUp(e.start+e.dur+S().buffer),split:false,done:false}),{msg:`「${e.title}」を自分の予定として複製しました`});
-    return;
+  const wrap=ctx.querySelector('.dupwrap');
+  if(wrap){
+    wrap.addEventListener('pointerenter',e=>{if(e.pointerType==='touch')return;clearTimeout(subTimer);subTimer=setTimeout(openSub,280)});
+    wrap.addEventListener('pointerleave',e=>{if(e.pointerType==='touch')return;clearTimeout(subTimer);subTimer=setTimeout(closeSub,220)});
   }
-  const t=taskOf(d,b.taskId);if(!t)return;
-  const copy={...t,id:uid(),done:false};delete copy.sample;delete copy.routineId;delete copy.from;
-  if(t.fixed!=null)copy.fixed=snapUp(t.fixed+t.dur+S().buffer);
-  mutate(d=>d.tasks.push(copy),{msg:`「${t.title}」を複製しました`});
 }
+function openSub(focus){
+  const sub=ctx.querySelector('.ctx-sub'),btn=ctx.querySelector('[data-c=dup]');if(!sub||!sub.hidden&&!focus)return;
+  sub.hidden=false;btn.setAttribute('aria-expanded','true');sub.classList.remove('flip');sub.style.top='-5px';
+  const r=sub.getBoundingClientRect();
+  if(r.right>innerWidth-8)sub.classList.add('flip');
+  if(r.bottom>innerHeight-8)sub.style.top=(-5-(r.bottom-innerHeight+8))+'px';
+  if(focus)sub.querySelector('button').focus();
+}
+function closeSub(){const sub=ctx.querySelector('.ctx-sub'),btn=ctx.querySelector('[data-c=dup]');if(sub){sub.hidden=true;btn.setAttribute('aria-expanded','false')}}
+function copyOf(b,d){
+  if(b.gcal){const e=b.gcal;return{id:uid(),title:e.title,cat:'work',dur:Math.max(5,Math.round(e.dur/5)*5),prio:2,fixed:e.start,split:false,done:false}}
+  const t=taskOf(d,b.taskId);if(!t)return null;
+  const c={...t,id:uid(),done:false};delete c.sample;delete c.routineId;delete c.from;return c;
+}
+function dupBlock(b,mode){
+  const src=day(),base=copyOf(b,src);if(!base)return;
+  const name=base.title;
+  if(mode==='same'){
+    if(base.fixed!=null)base.fixed=snapUp(b.start+b.dur+S().buffer);
+    mutate(d=>d.tasks.push(base),{msg:`「${name}」をこの日に複製しました`});return;
+  }
+  const targets=mode==='next'?[shift(curDate,1)]:weekDates(curDate).filter(x=>x!==curDate);
+  mutate(()=>{
+    for(const ds of targets){
+      const dd=DB.days[ds]||(DB.days[ds]={tasks:[],places:[]});
+      dd.tasks.push({...base,id:uid()});dd.needsPlan=true;
+    }
+  },{replan:false,msg:mode==='next'?`「${name}」を${md(targets[0])}（${dInfo(targets[0]).wd}）に複製しました`:`「${name}」をこの週の他の${targets.length}日に複製しました`});
+}
+let lastPT='mouse';
+ctx.addEventListener('pointerdown',e=>{lastPT=e.pointerType||'mouse'});
 ctx.addEventListener('click',e=>{
-  const c=e.target.closest('[data-c]');if(!c||!ctxTarget)return;const b=ctxTarget;closeCtx();
-  if(c.dataset.c==='edit')openBlock(b);else dupBlock(b);
+  const c=e.target.closest('[data-c]');if(!c||!ctxTarget)return;const b=ctxTarget,k=c.dataset.c;
+  if(k==='dup'){
+    if(lastPT==='touch'||lastPT==='pen'||e.detail===0){const sub=ctx.querySelector('.ctx-sub');sub.hidden?openSub(e.detail===0):closeSub();return}
+    closeCtx();dupBlock(b,'same');return;
+  }
+  closeCtx();
+  if(k==='edit')openBlock(b);
+  else if(k==='dup-same')dupBlock(b,'same');
+  else if(k==='dup-next')dupBlock(b,'next');
+  else if(k==='dup-week')dupBlock(b,'week');
 });
 ctx.addEventListener('keydown',e=>{
-  if(e.key==='Escape'){closeCtx();return}
-  if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();const bs=[...ctx.querySelectorAll('button')],i=bs.indexOf(document.activeElement);bs[(i+(e.key==='ArrowDown'?1:-1)+bs.length)%bs.length].focus()}
+  if(e.key==='Escape'){const sub=ctx.querySelector('.ctx-sub');if(sub&&!sub.hidden){closeSub();ctx.querySelector('[data-c=dup]').focus()}else closeCtx();e.stopPropagation();return}
+  const inSub=!!document.activeElement.closest('.ctx-sub');
+  if(e.key==='ArrowRight'&&document.activeElement.dataset.c==='dup'){e.preventDefault();openSub(true);return}
+  if(e.key==='ArrowLeft'&&inSub){e.preventDefault();closeSub();ctx.querySelector('[data-c=dup]').focus();return}
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+    e.preventDefault();
+    const bs=inSub?[...ctx.querySelectorAll('.ctx-sub button')]:[...ctx.querySelectorAll('button')].filter(x=>!x.closest('.ctx-sub'));
+    const i=bs.indexOf(document.activeElement);bs[(i+(e.key==='ArrowDown'?1:-1)+bs.length)%bs.length].focus();
+  }
 });
 document.addEventListener('pointerdown',e=>{if(!ctx.hidden&&!e.target.closest('#ctx'))closeCtx()},true);
 window.addEventListener('blur',closeCtx);
