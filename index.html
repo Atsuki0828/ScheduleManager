@@ -417,6 +417,9 @@ body.hasbar .toast{bottom:calc(86px + env(safe-area-inset-bottom,0px))}
 /* Google Cloud で作った OAuth クライアントID（ウェブアプリ）。設定欄で入れた値があればそちらが優先 */
 const GOOGLE_CLIENT_ID='';
 const CAL_SCOPE='https://www.googleapis.com/auth/calendar.readonly',DRIVE_SCOPE='https://www.googleapis.com/auth/drive.appdata';
+/* このアプリが作ったカレンダーだけを作成・編集できる権限。ほかのカレンダーには書き込めない */
+const WRITE_SCOPE='https://www.googleapis.com/auth/calendar.app.created';
+const OUT_CAL_NAME='段取りスケジュール';
 const SCOPES=`${CAL_SCOPE} ${DRIVE_SCOPE} openid email profile`;
 
 const $=s=>document.querySelector(s);
@@ -446,18 +449,20 @@ function parseT(v){if(!v)return null;const[h,m]=v.split(':').map(Number);let t=h
 let DB=null;
 function normalize(o){
   o=o||{};o.v=2;o.settings={...DEF,...(o.settings||{})};o.days=o.days||{};o.routines=o.routines||[];o.inbox=o.inbox||[];
-  o.gcal={clientId:'',calendars:[],selected:{},ignore:{},email:null,name:null,...(o.gcal||{})};
+  o.gcal={clientId:'',calendars:[],selected:{},ignore:{},email:null,name:null,outCal:null,outOn:false,...(o.gcal||{})};
   o.u=o.u||{};
   return o;
 }
 /* 同期用の変更印。どの日・どの設定が最後にいつ変わったかを持ち、端末間ではより新しい方を採る */
 const jNoU=o=>JSON.stringify(o===undefined?null:o,(k,v)=>k==='u'?undefined:v);
-const PARTS={settings:o=>o.settings,routines:o=>o.routines,inbox:o=>o.inbox,gsel:o=>({selected:o.gcal.selected,ignore:o.gcal.ignore,clientId:o.gcal.clientId})};
+const PARTS={settings:o=>o.settings,routines:o=>o.routines,inbox:o=>o.inbox,gsel:o=>({selected:o.gcal.selected,ignore:o.gcal.ignore,clientId:o.gcal.clientId,outCal:o.gcal.outCal||null,outOn:!!o.gcal.outOn})};
 function stamp(before){
   const now=Date.now();let n=0;
-  for(const[k,v]of Object.entries(DB.days)){if(jNoU(before.days[k])!==jNoU(v)){v.u=now;n++}}
+  const days=[];
+  for(const[k,v]of Object.entries(DB.days)){if(jNoU(before.days[k])!==jNoU(v)){v.u=now;n++;days.push(k)}}
   for(const[k,f]of Object.entries(PARTS)){if(jNoU(f(before))!==jNoU(f(DB))){DB.u[k]=now;n++}}
   if(n)markDirty();
+  if(days.length)queueExport(days);
 }
 function load(){try{const s=localStorage.getItem(KEY);if(s){const o=JSON.parse(s);if(o&&o.days)return normalize(o)}}catch(e){}return null}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(DB))}catch(e){}}
@@ -481,7 +486,7 @@ function edit(fn){const before=JSON.parse(JSON.stringify(DB));fn();stamp(before)
 
 /* ---------- Googleカレンダー ---------- */
 const GC={token:null,exp:0,cache:{},status:'',bad:false,loading:false,client:null,cal:false,drive:false,quiet:false};
-try{const t=JSON.parse(localStorage.getItem(TKEY)||'null');if(t&&t.exp>Date.now()){GC.token=t.token;GC.exp=t.exp;GC.cal=t.cal!==false;GC.drive=!!t.drive}}catch(e){}
+try{const t=JSON.parse(localStorage.getItem(TKEY)||'null');if(t&&t.exp>Date.now()){GC.token=t.token;GC.exp=t.exp;GC.cal=t.cal!==false;GC.drive=!!t.drive;GC.write=!!t.write}}catch(e){}
 const clientId=()=>(DB.gcal.clientId||GOOGLE_CLIENT_ID||'').trim();
 const gLive=()=>!!GC.token&&GC.exp>Date.now();
 function gDrop(){GC.token=null;GC.exp=0;try{localStorage.removeItem(TKEY)}catch(e){}}
@@ -499,13 +504,16 @@ function gLogin(){
   GC.client.requestAccessToken(o);
 }
 /* 同期だけを許可してもらう。1つの権限だけを求めるので、確認画面にチェックボックスが出ず「許可」を押すだけで済む */
-function gEnableSync(){
+function gAskScope(kind){
   if(!clientId()){toast('先に「組み方の設定」でクライアントIDを入れてください');return}
   if(!(window.google&&google.accounts&&google.accounts.oauth2)){toast('Googleの読み込みを待っています。数秒後にもう一度押してください');return}
-  if(!GC.driveClient)GC.driveClient=google.accounts.oauth2.initTokenClient({client_id:clientId(),scope:DRIVE_SCOPE,include_granted_scopes:true,callback:r=>{GC.askedDrive=true;onToken(r)},
-    error_callback:e=>{GC.status=e&&e.type==='popup_closed'?'許可の画面が閉じられました。もう一度「同期を有効にする」を押してください。':'許可の画面を開けませんでした。ポップアップがブロックされていないか確認してください。';GC.bad=true;renderGoogle()}});
-  GC.driveClient.requestAccessToken({prompt:'consent',login_hint:DB.gcal.email||undefined});
+  GC.scopeClients=GC.scopeClients||{};
+  const scope=kind==='drive'?DRIVE_SCOPE:WRITE_SCOPE,btn=kind==='drive'?'同期を有効にする':'書き出しを始める';
+  if(!GC.scopeClients[kind])GC.scopeClients[kind]=google.accounts.oauth2.initTokenClient({client_id:clientId(),scope,include_granted_scopes:true,callback:r=>{GC.asked=kind;onToken(r)},
+    error_callback:e=>{GC.status=e&&e.type==='popup_closed'?`許可の画面が閉じられました。もう一度「${btn}」を押してください。`:'許可の画面を開けませんでした。ポップアップがブロックされていないか確認してください。';GC.bad=true;renderGoogle()}});
+  GC.scopeClients[kind].requestAccessToken({prompt:'consent',login_hint:DB.gcal.email||undefined});
 }
+const gEnableSync=()=>gAskScope('drive');
 /* 期限切れのあと、予定を編集したタイミングで目立たず再接続する（クリック操作の中なのでポップアップが許可される） */
 function gQuietReconnect(){
   if(GC.quiet||!gInitClient())return;
@@ -514,18 +522,23 @@ function gQuietReconnect(){
 async function onToken(r){
   GC.quiet=false;
   if(!r||r.error){GC.status='ログインできませんでした（'+esc(r&&(r.error_description||r.error)||'不明なエラー')+'）。';GC.bad=true;renderGoogle();return}
-  const asked=GC.askedDrive;GC.askedDrive=false;
+  const asked=GC.asked;GC.asked=null;
   GC.cal=google.accounts.oauth2.hasGrantedAllScopes(r,CAL_SCOPE);
   GC.drive=google.accounts.oauth2.hasGrantedAllScopes(r,DRIVE_SCOPE);
+  GC.write=google.accounts.oauth2.hasGrantedAllScopes(r,WRITE_SCOPE);
   GC.token=r.access_token;GC.exp=Date.now()+(+r.expires_in||3600)*1000-60000;
-  try{localStorage.setItem(TKEY,JSON.stringify({token:GC.token,exp:GC.exp,cal:GC.cal,drive:GC.drive}))}catch(e){}
+  try{localStorage.setItem(TKEY,JSON.stringify({token:GC.token,exp:GC.exp,cal:GC.cal,drive:GC.drive,write:GC.write}))}catch(e){}
   GC.bad=false;GC.status='';
   try{
     const u=await gApi('https://www.googleapis.com/oauth2/v3/userinfo');
     if(DB.gcal.email&&u.email&&u.email!==DB.gcal.email)syncReset();
     DB.gcal.email=u.email||null;DB.gcal.name=u.name||u.email||'Googleアカウント';save();
-    if(GC.drive){if(asked)toast('同期を有効にしました');await syncNow()}
-    else if(asked){GC.status='ドライブへのアクセスが許可されませんでした。もう一度「同期を有効にする」を押し、確認画面で「許可」（チェックボックスがあればチェック）を選んでください。';GC.bad=true}
+    if(GC.drive){if(asked==='drive')toast('同期を有効にしました');await syncNow()}
+    else if(asked==='drive'){GC.status='ドライブへのアクセスが許可されませんでした。もう一度「同期を有効にする」を押し、確認画面で「許可」（チェックボックスがあればチェック）を選んでください。';GC.bad=true}
+    if(asked==='write'){
+      if(GC.write){edit(()=>{DB.gcal.outOn=true});exportAll();toast(`「${OUT_CAL_NAME}」への書き出しを始めました`)}
+      else{GC.status=`カレンダーの作成と書き込みが許可されませんでした。もう一度「書き出しを始める」を押し、「許可」を選んでください。`;GC.bad=true}
+    }else if(canExport()&&EX.pending.size)exportNow();
     if(GC.cal){await gLoadCalendars();GC.cache={};await gSync(true)}
     else{GC.status=(GC.status?GC.status+' ':'')+'カレンダーの閲覧が許可されていないため、予定は取り込めません。';GC.bad=true;render()}
   }catch(e){gErr(e)}
@@ -551,7 +564,7 @@ function takePart(L,R,k){
   if(k==='settings')L.settings=R.settings;
   else if(k==='routines')L.routines=R.routines;
   else if(k==='inbox')L.inbox=R.inbox;
-  else{L.gcal.selected=R.gcal.selected;L.gcal.ignore=R.gcal.ignore;L.gcal.clientId=R.gcal.clientId||L.gcal.clientId}
+  else{L.gcal.selected=R.gcal.selected;L.gcal.ignore=R.gcal.ignore;L.gcal.clientId=R.gcal.clientId||L.gcal.clientId;L.gcal.outCal=R.gcal.outCal||L.gcal.outCal||null;L.gcal.outOn=!!R.gcal.outOn}
 }
 /* 変更時刻の新しい方を採る。時刻がない（同期を入れる前の）データどうしで中身が違うときは、
    片方が空や例だけならもう片方を採り、両方に中身があれば conflicts に入れて利用者に選んでもらう */
@@ -704,11 +717,135 @@ function syncLineHTML(){
   return `<span class="gstatus${bad?' bad':''}" id="syncLine">${msg}</span>`;
 }
 function renderSyncLine(){const el=$('#syncLine');if(el)el.outerHTML=syncLineHTML()}
+
+/* ---------- Googleカレンダー「段取りスケジュール」への書き出し ---------- */
+/* 書き出し先はこのアプリが作ったカレンダー1つだけ。各予定に「段取り帳のどの日のどの予定か」の印を付け、
+   日ごとに「あるべき予定」と「カレンダー上の予定」を突き合わせて、足りない分を作り・変わった分を直し・要らない分を消す */
+const XKEY='dandori:export',CALAPI='https://www.googleapis.com/calendar/v3';
+const TZ=(()=>{try{return Intl.DateTimeFormat().resolvedOptions().timeZone||'Asia/Tokyo'}catch(e){return'Asia/Tokyo'}})();
+const EVCOLOR={class:'9',study:'10',work:'6',hobby:'3',life:'2',move:'8'};
+const EX={pending:new Set(),sig:{},at:0,busy:false,again:false,err:'',timer:null};
+try{const o=JSON.parse(localStorage.getItem(XKEY)||'{}');EX.pending=new Set(o.pending||[]);EX.sig=o.sig||{};EX.at=o.at||0}catch(e){}
+function exSave(){try{localStorage.setItem(XKEY,JSON.stringify({pending:[...EX.pending],sig:EX.sig,at:EX.at}))}catch(e){}}
+const canExport=()=>gLive()&&GC.write&&!!DB.gcal.outOn;
+function queueExport(dates){
+  if(!DB.gcal.outOn)return;
+  dates.forEach(d=>EX.pending.add(d));exSave();
+  clearTimeout(EX.timer);if(canExport())EX.timer=setTimeout(exportNow,2500);
+  renderExportLine();
+}
+function exportAll(){
+  const from=shift(todayStr(),-7);
+  queueExport(Object.keys(DB.days).filter(k=>k>=from&&realTasks(DB.days[k]).length));
+  exportNow();
+}
+function desiredEvents(date){
+  const d=DB.days[date];if(!d)return[];
+  const out=[],byTask={};
+  for(const t of d.tasks)if(t.fixed!=null&&!t.sample)out.push({key:t.id+'#0',t,start:t.fixed,dur:t.dur,n:1,i:1});
+  for(const p of d.places){if(p.taskId==='__break')continue;(byTask[p.taskId]=byTask[p.taskId]||[]).push(p)}
+  for(const[id,ps]of Object.entries(byTask)){
+    const t=d.tasks.find(x=>x.id===id);if(!t||t.sample||t.fixed!=null)continue;
+    ps.sort((a,b)=>a.start-b.start).forEach((p,i)=>out.push({key:id+'#'+i,t,start:p.start,dur:p.dur,n:ps.length,i:i+1}));
+  }
+  return out.map(e=>({key:e.key,summary:(e.t.done?'✓ ':'')+e.t.title+(e.n>1?`（${e.i}/${e.n}）`:''),start:e.start,end:e.start+e.dur,colorId:EVCOLOR[e.t.cat]||'8',cat:(CATS[e.t.cat]||{}).label||''}));
+}
+const evSig=list=>JSON.stringify(list.map(e=>[e.key,e.summary,e.start,e.end,e.colorId]));
+function isoAt(date,min){const[y,m,d]=date.split('-').map(Number);return new Date(y,m-1,d,0,min).toISOString()}
+function evBody(date,w){
+  return{summary:w.summary,colorId:w.colorId,
+    start:{dateTime:isoAt(date,w.start),timeZone:TZ},end:{dateTime:isoAt(date,w.end),timeZone:TZ},
+    description:`段取り帳から書き出した予定です（${w.cat}）。変更は段取り帳で行ってください。`,
+    reminders:{useDefault:false},
+    extendedProperties:{private:{dandori:'1',dandoriDate:date,dandoriKey:w.key}}};
+}
+async function calWrite(method,url,body){
+  const r=await fetch(url,{method,headers:{Authorization:'Bearer '+GC.token,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});
+  if(r.status===401){gDrop();throw new Error('auth')}
+  if(method==='DELETE'&&(r.status===404||r.status===410))return null;
+  if(!r.ok){let m='';try{m=(await r.json()).error.message}catch(e){}throw new Error('http '+r.status+(m?' '+m:''))}
+  return method==='DELETE'?null:r.json();
+}
+async function ensureOutCal(){
+  if(DB.gcal.outCal)return DB.gcal.outCal;
+  const c=await calWrite('POST',`${CALAPI}/calendars`,{summary:OUT_CAL_NAME,description:'段取り帳が書き出す予定のカレンダーです。予定の変更は段取り帳で行ってください。',timeZone:TZ});
+  edit(()=>{DB.gcal.outCal=c.id;DB.gcal.selected[c.id]=false});
+  // 色をそろえて、カレンダーの一覧に表示させる
+  try{await calWrite('PATCH',`${CALAPI}/users/me/calendarList/${encodeURIComponent(c.id)}?colorRgbFormat=true`,{backgroundColor:'#2b47a0',foregroundColor:'#ffffff',selected:true})}catch(_){}
+  return c.id;
+}
+async function exportDay(date){
+  const cal=DB.gcal.outCal,base=`${CALAPI}/calendars/${encodeURIComponent(cal)}/events`;
+  const want=desiredEvents(date);
+  const q=new URLSearchParams({privateExtendedProperty:'dandoriDate='+date,maxResults:'250',singleEvents:'true'});
+  const r=await gApi(`${base}?${q}`);
+  const have=new Map(),extra=[];
+  for(const ev of r.items||[]){
+    if(ev.status==='cancelled')continue;
+    const k=ev.extendedProperties&&ev.extendedProperties.private&&ev.extendedProperties.private.dandoriKey;
+    if(!k||have.has(k))extra.push(ev.id);else have.set(k,ev);
+  }
+  const same=(ev,b)=>ev.summary===b.summary&&(ev.colorId||'')===b.colorId&&
+    new Date(ev.start.dateTime).getTime()===new Date(b.start.dateTime).getTime()&&new Date(ev.end.dateTime).getTime()===new Date(b.end.dateTime).getTime();
+  for(const w of want){
+    const b=evBody(date,w),ev=have.get(w.key);
+    if(!ev)await calWrite('POST',base,b);
+    else{have.delete(w.key);if(!same(ev,b))await calWrite('PUT',`${base}/${ev.id}`,b)}
+  }
+  for(const ev of have.values())await calWrite('DELETE',`${base}/${ev.id}`);
+  for(const id of extra)await calWrite('DELETE',`${base}/${id}`);
+  EX.sig[date]=evSig(want);
+}
+async function exportNow(){
+  if(!canExport())return;
+  if(EX.busy){EX.again=true;return}
+  EX.busy=true;EX.err='';renderExportLine();
+  try{
+    await ensureOutCal();
+    for(const ds of[...EX.pending].sort()){
+      try{await exportDay(ds)}
+      catch(e){
+        if(/404/.test(e.message)){edit(()=>{DB.gcal.outCal=null});await ensureOutCal();await exportDay(ds)}
+        else throw e;
+      }
+      EX.pending.delete(ds);exSave();
+    }
+    EX.at=Date.now();
+  }catch(e){
+    if(e.message==='auth')EX.err='接続の期限が切れたため、書き出しが止まっています。';
+    else if(/403/.test(e.message))EX.err=/insufficient|scope/i.test(e.message)?'カレンダーへの書き込みが許可されていません。「書き出しを始める」をもう一度押してください。':'書き出せませんでした（'+esc(e.message)+'）。';
+    else EX.err='書き出せませんでした（'+esc(e.message)+'）。';
+  }finally{
+    EX.busy=false;exSave();renderExportLine();
+    if(EX.again){EX.again=false;setTimeout(exportNow,800)}
+  }
+}
+/* 表示中の日の配置が、最後に書き出した内容と変わっていたら書き出し直す */
+function exportCheck(){
+  if(!DB.gcal.outOn||!DB.gcal.outCal)return;
+  const d=DB.days[curDate];if(!d)return;
+  const s=evSig(desiredEvents(curDate));
+  if(EX.sig[curDate]===undefined?realTasks(d).length>0:EX.sig[curDate]!==s)if(!EX.pending.has(curDate))queueExport([curDate]);
+}
+function exportLineHTML(){
+  if(!DB.gcal.email)return'';
+  if(!DB.gcal.outOn)return `<div class="actions" id="exLine"><button class="ghost small" id="gExportOn">「${OUT_CAL_NAME}」に書き出す</button><span class="gstatus">段取りした予定を、Googleカレンダーの専用カレンダーに反映します</span></div>`;
+  let msg,bad=false;
+  if(!GC.write&&gLive())return `<div class="actions" id="exLine"><button class="primary small" id="gExportOn">書き出しを始める</button><span class="gstatus">カレンダーの作成と書き込みの許可が必要です</span></div>`;
+  if(EX.busy)msg='書き出し中…';
+  else if(EX.err){msg=EX.err;bad=true}
+  else if(!gLive())msg=EX.pending.size?`書き出し待ち ${EX.pending.size}日分（再接続すると反映します）`:`「${OUT_CAL_NAME}」に書き出しています`;
+  else if(EX.pending.size)msg=`書き出し待ち ${EX.pending.size}日分…`;
+  else msg=EX.at?`「${OUT_CAL_NAME}」に反映済み（${new Date(EX.at).getHours()}:${pad(new Date(EX.at).getMinutes())}）`:`「${OUT_CAL_NAME}」に書き出しています`;
+  return `<div class="actions" id="exLine"><span class="gstatus${bad?' bad':''}">${msg}</span><button class="ghost small" id="gExportAll"${EX.busy?' disabled':''}>まとめて反映</button><button class="ghost small" id="gExportOff">止める</button></div>`;
+}
+function renderExportLine(){const el=$('#exLine');if(el)el.outerHTML=exportLineHTML()}
 async function gLoadCalendars(){
   const cl=await gApi('https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=reader&maxResults=250');
   const items=cl.items||[];
   DB.gcal.calendars=items.map(c=>({id:c.id,summary:c.summaryOverride||c.summary||c.id,color:c.backgroundColor||'#4a6cf7',primary:!!c.primary}));
   for(const c of items)if(DB.gcal.selected[c.id]===undefined)DB.gcal.selected[c.id]=!!(c.primary||c.selected);
+  if(DB.gcal.outCal)DB.gcal.selected[DB.gcal.outCal]=false; // 書き出し先を取り込むと二重になるので読まない
   save();
 }
 async function gApi(url){
@@ -725,7 +862,7 @@ function gErr(e){
 }
 function gLogout(){
   if(GC.token&&window.google&&google.accounts&&google.accounts.oauth2){try{google.accounts.oauth2.revoke(GC.token,()=>{})}catch(e){}}
-  gDrop();GC.cache={};GC.status='';GC.bad=false;GC.drive=false;GC.cal=false;DB.gcal.email=null;DB.gcal.name=null;syncReset();save();
+  gDrop();GC.cache={};GC.status='';GC.bad=false;GC.drive=false;GC.cal=false;GC.write=false;DB.gcal.email=null;DB.gcal.name=null;syncReset();save();
   if(S().autoReplan)autoPlan(day());save();render();toast('Googleからログアウトしました');
 }
 function evNorm(ev,c,t0){
@@ -762,7 +899,8 @@ async function gSync(force){
     if(date===curDate){if(S().autoReplan)autoPlan(day());save();render()}
   }catch(e){gErr(e)}
 }
-function gEvents(date){const c=GC.cache[date];if(!c)return[];return c.events.filter(e=>DB.gcal.selected[e.calId])}
+const inCals=()=>DB.gcal.calendars.filter(x=>x.id!==DB.gcal.outCal);
+function gEvents(date){const c=GC.cache[date];if(!c)return[];return c.events.filter(e=>DB.gcal.selected[e.calId]&&e.calId!==DB.gcal.outCal)}
 function gIgnored(date){return new Set(DB.gcal.ignore[date]||[])}
 function gBlocks(){
   const ign=gIgnored(curDate);
@@ -845,7 +983,7 @@ function ensureDay(){
   let plan=false;
   if(!d.routined&&curDate>=todayStr()){d.routined=true;if(applyRoutines(d,curDate))plan=true}
   if(d.needsPlan){delete d.needsPlan;plan=true}
-  if(plan){autoPlan(d);save()}
+  if(plan){autoPlan(d);save();queueExport([curDate])}
   return d;
 }
 
@@ -857,7 +995,7 @@ function render(){
   $('#todayBtn').hidden=curDate===todayStr();
   $('#sampleBanner').hidden=!d.tasks.some(t=>t.sample);
   pruneSel();
-  renderStats(d);renderWeek();renderGoogle();renderTasks(d);renderInbox();renderRoutines();renderCarry(d);renderNow(d);renderBalance(d);renderStrip();renderTimeline(d);renderSelBar();
+  renderStats(d);renderWeek();renderGoogle();renderTasks(d);renderInbox();renderRoutines();renderCarry(d);renderNow(d);renderBalance(d);renderStrip();renderTimeline(d);renderSelBar();exportCheck();
 }
 function covered(bl,a,b){
   const iv=bl.map(x=>[Math.max(a,x.start),Math.min(b,x.start+x.dur)]).filter(([s,e])=>e>s).sort((p,q)=>p[0]-q[0]);
@@ -902,21 +1040,21 @@ function renderGoogle(){
   if(!gLive()){
     p.innerHTML=`<div class="gtop">${GLOGO}<span class="gname">Googleと接続</span></div>
      ${DB.gcal.email?`<p class="hint">${esc(DB.gcal.email)} の接続が切れています（安全のため1時間ごとに切れます）。予定を編集すると自動でつなぎ直します。</p>`:'<p class="hint">ログインすると、カレンダーの予定が時間軸に入り、それを避けて段取りが組まれます。同じGoogleアカウントでログインした端末どうしで、予定や設定が同期されます。</p>'}
-     <div class="actions"><button class="gbtn" id="gLogin">${GLOGO}${DB.gcal.email?'再接続':'Googleでログイン'}</button>${DB.gcal.email?'<button class="ghost small" id="gLogout">ログアウト</button>':''}</div>${syncLineHTML()}${st}`;
+     <div class="actions"><button class="gbtn" id="gLogin">${GLOGO}${DB.gcal.email?'再接続':'Googleでログイン'}</button>${DB.gcal.email?'<button class="ghost small" id="gLogout">ログアウト</button>':''}</div>${syncLineHTML()}${exportLineHTML()}${st}`;
     return;
   }
   if(!GC.cal){
     p.innerHTML=`<div class="gtop">${GLOGO}<div style="min-width:0;flex:1"><div class="gname">${esc(DB.gcal.name||'Googleアカウント')}</div><div class="gstatus">${esc(DB.gcal.email||'')}</div></div>
-       <button class="ghost small" id="gRelogin">ログインし直す</button><button class="ghost small" id="gLogout">ログアウト</button></div>${syncLineHTML()}${st}`;
+       <button class="ghost small" id="gRelogin">ログインし直す</button><button class="ghost small" id="gLogout">ログアウト</button></div>${syncLineHTML()}${exportLineHTML()}${st}`;
     return;
   }
   const c=GC.cache[curDate],evs=gEvents(curDate);
   const info=GC.loading?'読み込み中…':c?`この日の予定 ${evs.length}件 · ${new Date(c.at).getHours()}:${pad(new Date(c.at).getMinutes())} 更新`:'';
   p.innerHTML=`<div class="gtop">${GLOGO}<div style="min-width:0;flex:1"><div class="gname">${esc(DB.gcal.name||'Googleアカウント')}</div><div class="gstatus">${esc(DB.gcal.email||'')}</div></div>
      <button class="ghost small" id="gReload"${GC.loading||SY.busy?' disabled':''}>再読み込み</button><button class="ghost small" id="gLogout">ログアウト</button></div>
-   <p class="gstatus">${info}</p>${syncLineHTML()}${st}
-   <details class="sub"><summary>表示するカレンダー（${DB.gcal.calendars.filter(x=>DB.gcal.selected[x.id]).length}/${DB.gcal.calendars.length}）</summary>
-    <div class="calist">${DB.gcal.calendars.map(x=>`<label><input type="checkbox" data-cal="${esc(x.id)}"${DB.gcal.selected[x.id]?' checked':''}><i class="cdot" style="background:${esc(x.color)}"></i><span class="cn">${esc(x.summary)}</span></label>`).join('')}</div></details>`;
+   <p class="gstatus">${info}</p>${syncLineHTML()}${exportLineHTML()}${st}
+   <details class="sub"><summary>取り込むカレンダー（${inCals().filter(x=>DB.gcal.selected[x.id]).length}/${inCals().length}）</summary>
+    <div class="calist">${inCals().map(x=>`<label><input type="checkbox" data-cal="${esc(x.id)}"${DB.gcal.selected[x.id]?' checked':''}><i class="cdot" style="background:${esc(x.color)}"></i><span class="cn">${esc(x.summary)}</span></label>`).join('')}</div></details>`;
 }
 function firstStart(d,t){if(t.fixed!=null)return t.fixed;const ps=d.places.filter(p=>p.taskId===t.id);return ps.length?Math.min(...ps.map(p=>p.start)):Infinity}
 function renderTasks(d){
@@ -1176,6 +1314,14 @@ $('#gPanel').addEventListener('click',e=>{
   if(id==='gLogout')gLogout();
   if(id==='gReload'){gSync(true);syncNow()}
   if(id==='gEnableSync')gEnableSync();
+  if(id==='gExportOn'){if(GC.write&&gLive()){edit(()=>{DB.gcal.outOn=true});exportAll();renderGoogle()}else gAskScope('write')}
+  if(id==='gExportAll'){exportAll()}
+  if(id==='gExportOff'){
+    const b=e.target.closest('button');
+    if(!b.classList.contains('armed')){b.classList.add('armed','danger');b.textContent='もう一度押すと止めます';return}
+    edit(()=>{DB.gcal.outOn=false});EX.pending.clear();exSave();renderGoogle();
+    toast(`書き出しを止めました。「${OUT_CAL_NAME}」に入っている予定はそのまま残ります`);
+  }
   if(id==='gResume'){SY.snooze=false;SY.version=null;syncNow()}
   if(id==='gRelogin'&&gInitClient())GC.client.requestAccessToken({prompt:'consent',login_hint:DB.gcal.email||undefined});
   if(id==='gClientSave'){const v=$('#gClientIn').value.trim();if(!/\.apps\.googleusercontent\.com$/.test(v)){toast('「〜.apps.googleusercontent.com」で終わるIDを入れてください');return}
@@ -1524,6 +1670,7 @@ DB=load();
 if(!DB){DB=normalize(null);makeSample(curDate);save()}
 renderSettings();render();
 if(canSync())syncNow();
+if(canExport()&&EX.pending.size)setTimeout(exportNow,3000);
 if(gLive())gSync(true);
 setInterval(()=>{
   if(!drag&&ov.hidden){
